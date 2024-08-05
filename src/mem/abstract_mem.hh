@@ -57,6 +57,10 @@
 #include "CDNCcim/cim_operation_interface.hh"
 #endif // CDNCcimFlag
 
+#ifdef CDNCcimFSflag
+#include "CDNCcimFStutorial/cim_handler.hh"
+#endif // CDNCcimFSflag
+
 namespace gem5
 {
 
@@ -65,9 +69,9 @@ class System;
 namespace memory
 {
 
-#ifdef CDNCcimFlag
-class CimHandler;
-#endif // CDNCcimFlag
+#if defined(CDNCcimFlag) || defined(CDNCcimFSflag)
+class CimHandler; // forward declaration
+#endif            // CDNCcimFlag
 /**
  * Locked address class that represents a physical address and a
  * context id.
@@ -222,6 +226,10 @@ class AbstractMemory : public ClockedObject
     CimHandler *getCimHandlerPtr(const Addr &addr);
     std::vector<CimHandler *> cimHandlerList;
 #endif // CDNCcimFlag
+
+#ifdef CDNCcimFSflag
+    CimHandler *cimHandlerPtr; // pointer to CimHandler object
+#endif                         // CDNCcimFSflag
 
     PARAMS(AbstractMemory);
 
