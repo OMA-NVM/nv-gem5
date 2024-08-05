@@ -4,7 +4,7 @@ from m5.SimObject import SimObject
 
 class CimHandler(SimObject):
     type = "CimHandler"
-    cxx_header = "mem/cimTutorial/cim_handler.hh"
+    cxx_header = "mem/CDNCcimFStutorial/cim_handler.hh"
     cxx_class = "gem5::memory::CimHandler"
 
     cim_address = Param.Addr(
