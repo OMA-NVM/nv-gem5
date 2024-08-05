@@ -421,12 +421,21 @@ for variant_path in variant_paths:
             print("TU Dortmund modifications are disabled.")
 
         CDNCcim_flag = ARGUMENTS.get("CDNCcim", 0)
-        if CDNCcim_flag == "1": # Needs to be compared as argument is string
+        CDNCcimFS_flag = ARGUMENTS.get("CDNCcimFS", 0)
+        if CDNCcim_flag == "1" and CDNCcimFS_flag == "1": # Needs to be compared as argument is string
+            error("`CDNCcim` and `CDNCcimFS` should not be passed together!\n")
+        elif CDNCcim_flag == "1" and CDNCcimFS_flag == "0": 
             env.Append(CCFLAGS=['-D CDNCcimFlag=1'])
+            env.Append(CCFLAGS=['-U CDNCcimFSflag'])
             print(">>> CDNCcim modifications are enabled.")
+        elif CDNCcim_flag == "0" and CDNCcimFS_flag == "1": 
+            env.Append(CCFLAGS=['-D CDNCcimFSflag=1'])
+            env.Append(CCFLAGS=['-U CDNCcimFlag'])
+            print(">>> CDNCcimFS modifications are enabled.")
         else:
             env.Append(CCFLAGS=['-U CDNCcimFlag'])
-            print(">>> CDNCcim modifications are disabled.")
+            env.Append(CCFLAGS=['-U CDNCcimFSflag'])
+            print(">>> `CDNCcim` and `CDNCcimFS` modifications are disabled.")
 
         # As gcc and clang share many flags, do the common parts here
         env.Append(CCFLAGS=['-pipe'])
