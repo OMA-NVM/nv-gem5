@@ -1,0 +1,12 @@
+Import("*")
+
+CDNCcimFS_flag = ARGUMENTS.get("CDNCcimFS", 0)
+if CDNCcimFS_flag == "1":  # Needs to be compared as argument is string
+    ## telling gem5 about our module's objects and automatically initialize them
+    SimObject("OurHandler.py", sim_objects=["CimHandler"])
+
+    ## telling the linker to compile our file
+    Source("cim_handler.cc")
+
+    ## asking gem5 to generate a debug flag for our module:
+    DebugFlag("CIMDBG")
