@@ -58,7 +58,7 @@ board = X86Board(
     cache_hierarchy=cache_hierarchy,
 )
 
-disk_image_path = f"/workspace/NVM_Simulation/cdnc/images/disk.raw"  # Specify the path to your disk image
+disk_image_path = f"/workspaces/NVM_Simulation/cdnc/images/disk.raw"  # Specify the path to your disk image
 # Pay attention that you are running gem5 from  devcontainer
 
 
