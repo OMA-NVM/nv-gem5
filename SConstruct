@@ -422,20 +422,20 @@ for variant_path in variant_paths:
 
         CDNCcim_flag = ARGUMENTS.get("CDNCcim", 0)
         CDNCcimFS_flag = ARGUMENTS.get("CDNCcimFS", 0)
-        if CDNCcim_flag == "1" and CDNCcimFS_flag == "1": # Needs to be compared as argument is string
-            error("`CDNCcim` and `CDNCcimFS` should not be passed together!\n")
-        elif CDNCcim_flag == "1" and CDNCcimFS_flag == "0": 
+        if (CDNCcim_flag == "1") and (CDNCcimFS_flag == "1"):
+            error("\033[36m\033[3m `CDNCcim` and `CDNCcimFS` should not be passed together! \033[0m")
+        elif (CDNCcim_flag == "1") and (CDNCcimFS_flag != "1"): 
             env.Append(CCFLAGS=['-D CDNCcimFlag=1'])
             env.Append(CCFLAGS=['-U CDNCcimFSflag'])
-            print(">>> CDNCcim modifications are enabled.")
-        elif CDNCcim_flag == "0" and CDNCcimFS_flag == "1": 
-            env.Append(CCFLAGS=['-D CDNCcimFSflag=1'])
+            print("\033[36m\033[3m >>> CDNCcim modifications are enabled. \033[0m")
+        elif (CDNCcim_flag != "1") and (CDNCcimFS_flag == "1"): 
             env.Append(CCFLAGS=['-U CDNCcimFlag'])
-            print(">>> CDNCcimFS modifications are enabled.")
+            env.Append(CCFLAGS=['-D CDNCcimFSflag=1'])
+            print("\033[36m\033[3m >>> CDNCcimFS modifications are enabled. \033[0m")
         else:
             env.Append(CCFLAGS=['-U CDNCcimFlag'])
             env.Append(CCFLAGS=['-U CDNCcimFSflag'])
-            print(">>> `CDNCcim` and `CDNCcimFS` modifications are disabled.")
+            print("\033[36m\033[3m >>> `CDNCcim` and `CDNCcimFS` modifications are disabled. \033[0m")
 
         # As gcc and clang share many flags, do the common parts here
         env.Append(CCFLAGS=['-pipe'])
