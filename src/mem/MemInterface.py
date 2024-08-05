@@ -59,6 +59,14 @@ class MemInterface(AbstractMemory):
     cxx_header = "mem/mem_interface.hh"
     cxx_class = "gem5::memory::MemInterface"
 
+
+    # @CDNCcimFS
+    try:
+        from m5.objects.OurHandler import CimHandler
+        cimObj = Param.CimHandler(CimHandler(), "an object instance")
+    except ImportError:
+        pass
+
     # Allow the interface to set required controller buffer sizes
     # each entry corresponds to a burst for the specific memory channel
     # configuration (e.g. x32 with burst length 8 is 32 bytes) and not
