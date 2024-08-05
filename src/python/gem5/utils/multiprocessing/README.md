@@ -10,10 +10,36 @@ The goal of this code is to enable users to use a *single* set of python scripts
 We must reimplement some of the multiprocessing module because it is not flexible enough to allow for customized command line parameter to the "python" executable (gem5 in our case).
 To get around this, I extended the Process and context objects to be gem5 specific.
 
-The next steps is to wrap the Process and Pool types with gem5-specific versions that will improve their usability for our needs.
 With this changeset, these objects are usable, but it will require significant user effort to reach the goal of running/analyzing many different gem5 simulations.
+One specific issue is that the user has to call `m5.setOutputDir` or `Simulator.override_outdir` or else all of the output will overwrite each other.
+We *strongly* recommend that the user use the `multisim` module to run multiple simulations in parallel.
 
-## Example use
+## Multisim
+
+The `multisim` module is a higher-level abstraction that uses the `multiprocessing` module to run multiple simulations in parallel.
+
+You can declare a set of `Simulator` objects (via `add_simulator`) and then run them all in parallel from the command line.
+
+To run all the simulations defined in a script:
+
+```shell
+<gem5-binary> -m gem5.utils.multisim <path-to-script>
+```
+
+To run a specific simulation defined in this script:
+
+```shell
+<gem5-binary> <path-to-script> \
+    process_id_1
+```
+
+To list all the IDs of the simulations defined in this script:
+
+```shell
+<gem5-binary> <path-to-script> -l
+```
+
+## Example use of raw multiprocessing
 
 test.py:
 
@@ -48,8 +74,8 @@ def run_sim(name):
     from gem5.simulate.simulator import Simulator
     board = X86DemoBoard()
     board.set_kernel_disk_workload(
-        kernel=Resource("x86-linux-kernel-5.4.49"),
-        disk_image=Resource("x86-ubuntu-18.04-img"),
+        kernel=obtain_resource("x86-linux-kernel-5.4.49"),
+        disk_image=obtain_resource("x86-ubuntu-18.04-img"),
     )
     simulator = Simulator(board=board)
     simulator.run(max_ticks=10000000)

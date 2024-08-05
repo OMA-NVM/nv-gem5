@@ -42,13 +42,21 @@
 # Script for managing a gem5 disk image.
 #
 
-from argparse import ArgumentParser
 import os
-from os import environ as env
-import string
-from subprocess import CalledProcessError, Popen, PIPE, STDOUT
-from sys import exit, argv
 import re
+import string
+from argparse import ArgumentParser
+from os import environ as env
+from subprocess import (
+    PIPE,
+    STDOUT,
+    CalledProcessError,
+    Popen,
+)
+from sys import (
+    argv,
+    exit,
+)
 
 # Some constants.
 MaxLBACylinders = 16383
@@ -64,6 +72,7 @@ env["PATH"] += ":/sbin:/usr/sbin"
 
 # Whether to print debug output.
 debug = False
+
 
 # Figure out cylinders, heads and sectors from a size in blocks.
 def chsFromSize(sizeInBlocks):
@@ -139,7 +148,7 @@ def findProg(program, cleanupDev=None):
     return out.strip()
 
 
-class LoopbackDevice(object):
+class LoopbackDevice:
     def __init__(self, devFile=None):
         self.devFile = devFile
 
@@ -185,7 +194,8 @@ def findPartOffset(devFile, fileName, partition):
         r"\s*:\s*"  # Separator
         r"start=\s*(?P<start>\d+),\s*"  # Partition start record
         r"size=\s*(?P<size>\d+),\s*"  # Partition size record
-        r"type=(?P<type>\d+)"  # Partition type record
+        r"type=(?P<type>.+?),*?"  # Partition type record
+        r".*"  # anything else, e.g., name field
         r"\s*$"  # End of line
     )
     lines = out.splitlines()
@@ -227,7 +237,7 @@ commands = {}
 commandOrder = []
 
 
-class Command(object):
+class Command:
     def addArgument(self, *args, **kargs):
         self.parser.add_argument(*args, **kargs)
 

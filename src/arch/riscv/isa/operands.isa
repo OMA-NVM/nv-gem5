@@ -3,6 +3,7 @@
 // Copyright (c) 2015 RISC-V Foundation
 // Copyright (c) 2016 The University of Virginia
 // Copyright (c) 2020 Barkhausen Institut
+// Copyright (c) 2024 University of Rostock
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -38,7 +39,15 @@ def operand_types {{
     'sd' : 'int64_t',
     'ud' : 'uint64_t',
     'sf' : 'float',
-    'df' : 'double'
+    'df' : 'double',
+
+    'vi'    : 'vi',
+    'vu'    : 'vu',
+    'vwi'   : 'vwi',
+    'vwu'   : 'vwu',
+    'vext'  : 'vext',
+    'vextu' : 'vextu',
+    'vc'    : 'RiscvISA::VecRegContainer'
 }};
 
 let {{
@@ -63,6 +72,7 @@ def operands {{
     'sp': IntReg('ud', 'StackPointerReg', 'IsInteger', 2),
 
     'a0': IntReg('ud', '10', 'IsInteger', 1),
+    'a1': IntReg('ud', '11', 'IsInteger', 2),
 
     'Fd': FloatRegOp('df', 'FD', 'IsFloating', 1),
     'Fd_bits': FloatRegOp('ud', 'FD', 'IsFloating', 1),
@@ -79,10 +89,21 @@ def operands {{
     'Fp2': FloatRegOp('df', 'FP2 + 8', 'IsFloating', 2),
     'Fp2_bits': FloatRegOp('ud', 'FP2 + 8', 'IsFloating', 2),
 
+    'Vd':  VecRegOp('vc', 'VD', 'IsVector', 1),
+    'Vs1': VecRegOp('vc', 'VS1', 'IsVector', 2),
+    'Vs2': VecRegOp('vc', 'VS2', 'IsVector', 3),
+    'Vs3': VecRegOp('vc', 'VS3', 'IsVector', 4),
+
 #Memory Operand
     'Mem': MemOp('ud', None, (None, 'IsLoad', 'IsStore'), 5),
 
 #Program Counter Operands
     'PC': PCStateOp('ud', 'pc', (None, None, 'IsControl'), 7),
     'NPC': PCStateOp('ud', 'npc', (None, None, 'IsControl'), 8),
+
+# VL and VTYPE
+    'Vtype': PCStateOp('ud', 'vtype', (None, None, 'IsControl'), 10),
+    'VL': PCStateOp('uw', 'vl', (None, None, 'IsControl'), 11),
+#VLENB, actually the CSR is read only.
+    'VlenbBits': PCStateOp('ud', 'vlenb', (None, None, 'IsControl'), 12),
 }};

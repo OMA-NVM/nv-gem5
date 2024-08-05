@@ -177,22 +177,32 @@ RubySystem::makeCacheRecorder(uint8_t *uncompressed_trace,
                               uint64_t cache_trace_size,
                               uint64_t block_size_bytes)
 {
-    std::vector<Sequencer*> sequencer_map;
-    Sequencer* sequencer_ptr = NULL;
+    std::vector<RubyPort*> ruby_port_map;
+    RubyPort* ruby_port_ptr = NULL;
 
     for (int cntrl = 0; cntrl < m_abs_cntrl_vec.size(); cntrl++) {
-        sequencer_map.push_back(m_abs_cntrl_vec[cntrl]->getCPUSequencer());
-        if (sequencer_ptr == NULL) {
-            sequencer_ptr = sequencer_map[cntrl];
+        if (m_abs_cntrl_vec[cntrl]->getGPUCoalescer() != NULL) {
+            ruby_port_map.push_back(
+                    (RubyPort*)m_abs_cntrl_vec[cntrl]->getGPUCoalescer());
+        } else {
+            ruby_port_map.push_back(
+                    (RubyPort*)m_abs_cntrl_vec[cntrl]->getCPUSequencer());
+        }
+
+        if (ruby_port_ptr == NULL) {
+            ruby_port_ptr = ruby_port_map[cntrl];
         }
     }
 
-    assert(sequencer_ptr != NULL);
+    assert(ruby_port_ptr != NULL);
 
     for (int cntrl = 0; cntrl < m_abs_cntrl_vec.size(); cntrl++) {
-        if (sequencer_map[cntrl] == NULL) {
-            sequencer_map[cntrl] = sequencer_ptr;
+        if (ruby_port_map[cntrl] == NULL) {
+            ruby_port_map[cntrl] = ruby_port_ptr;
+        } else {
+            ruby_port_ptr = ruby_port_map[cntrl];
         }
+
     }
 
     // Remove the old CacheRecorder if it's still hanging about.
@@ -202,7 +212,8 @@ RubySystem::makeCacheRecorder(uint8_t *uncompressed_trace,
 
     // Create the CacheRecorder and record the cache trace
     m_cache_recorder = new CacheRecorder(uncompressed_trace, cache_trace_size,
-                                         sequencer_map, block_size_bytes);
+                                         ruby_port_map,
+                                         block_size_bytes);
 }
 
 void
@@ -443,6 +454,9 @@ RubySystem::startup()
         Tick curtick_original = curTick();
         // save the event queue head
         Event* eventq_head = eventq->replaceHead(NULL);
+        // save the exit event pointer
+        GlobalSimLoopExitEvent *original_simulate_limit_event = nullptr;
+        original_simulate_limit_event = simulate_limit_event;
         // set curTick to 0 and reset Ruby System's clock
         setCurTick(0);
         resetClock();
@@ -460,6 +474,8 @@ RubySystem::startup()
 
         // Restore eventq head
         eventq->replaceHead(eventq_head);
+        // Restore exit event pointer
+        simulate_limit_event = original_simulate_limit_event;
         // Restore curTick and Ruby System's clock
         setCurTick(curtick_original);
         resetClock();

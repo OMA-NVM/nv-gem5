@@ -1,4 +1,4 @@
-# Copyright (c) 2009, 2012-2013, 2015-2022 ARM Limited
+# Copyright (c) 2009, 2012-2013, 2015-2024 Arm Limited
 # All rights reserved.
 #
 # The license below extends only to copyright in the software and shall
@@ -33,15 +33,14 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
+from typing import Any
+
+from m5.objects.ArmSemihosting import ArmSemihosting
+from m5.objects.System import System
 from m5.options import *
+from m5.params import *
 from m5.SimObject import *
 from m5.util.fdthelper import *
-
-from m5.objects.System import System
-from m5.objects.ArmSemihosting import ArmSemihosting
-
-from typing import Any
 
 
 class SveVectorLength(UInt8):
@@ -66,6 +65,11 @@ class SmeVectorLength(UInt8):
 
 class ArmExtension(ScopedEnum):
     vals = [
+        "FEAT_AES",
+        "FEAT_PMULL",
+        "FEAT_SHA1",
+        "FEAT_SHA256",
+        "FEAT_CRC32",
         # Armv8.1
         "FEAT_VHE",
         "FEAT_PAN",
@@ -89,6 +93,7 @@ class ArmExtension(ScopedEnum):
         # Armv8.4
         "FEAT_SEL2",
         "FEAT_TLBIOS",
+        "FEAT_TLBIRANGE",
         "FEAT_FLAGM",
         "FEAT_IDST",
         # Armv8.5
@@ -96,16 +101,21 @@ class ArmExtension(ScopedEnum):
         "FEAT_RNG",
         "FEAT_RNG_TRAP",
         "FEAT_EVT",
+        # Armv8.6
+        "FEAT_FGT",
         # Armv8.7
         "FEAT_HCX",
+        # Armv8.9
+        "FEAT_SCTLR2",
+        "FEAT_TCR2",
         # Armv9.2
         "FEAT_SME",  # Optional in Armv9.2
         # Others
         "SECURITY",
         "LPAE",
         "VIRTUALIZATION",
-        "CRYPTO",
         "TME",
+        "FEAT_MPAM",
     ]
 
 
@@ -154,7 +164,16 @@ class ArmRelease(SimObject):
 
 
 class Armv8(ArmRelease):
-    extensions = ["LPAE", "VIRTUALIZATION", "SECURITY"]
+    extensions = [
+        "LPAE",
+        "VIRTUALIZATION",
+        "SECURITY",
+        "FEAT_AES",
+        "FEAT_PMULL",
+        "FEAT_SHA1",
+        "FEAT_SHA256",
+        "FEAT_CRC32",
+    ]
 
 
 class ArmDefaultRelease(Armv8):
@@ -181,11 +200,14 @@ class ArmDefaultRelease(Armv8):
         # Armv8.4
         "FEAT_SEL2",
         "FEAT_TLBIOS",
+        "FEAT_TLBIRANGE",
         "FEAT_FLAGM",
         "FEAT_IDST",
         # Armv8.5
         "FEAT_FLAGM2",
         "FEAT_EVT",
+        # Armv8.6
+        "FEAT_FGT",
         # Armv8.7
         "FEAT_HCX",
         # Armv9.2
@@ -225,6 +247,7 @@ class Armv84(Armv83):
     extensions = Armv83.extensions + [
         "FEAT_SEL2",
         "FEAT_TLBIOS",
+        "FEAT_TLBIRANGE",
         "FEAT_FLAGM",
         "FEAT_IDST",
     ]
@@ -239,14 +262,24 @@ class Armv85(Armv84):
     ]
 
 
-class Armv87(Armv85):
+class Armv86(Armv85):
     extensions = Armv85.extensions + [
+        "FEAT_FGT",
+    ]
+
+
+class Armv87(Armv86):
+    extensions = Armv86.extensions + [
         "FEAT_HCX",
     ]
 
 
-class Armv92(Armv87):
-    extensions = Armv87.extensions + ["FEAT_SME"]
+class Armv89(Armv87):
+    extensions = Armv87.extensions + ["FEAT_SCTLR2", "FEAT_TCR2"]
+
+
+class Armv92(Armv89):
+    extensions = Armv89.extensions + ["FEAT_SME"]
 
 
 class ArmAllRelease(ArmRelease):

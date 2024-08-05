@@ -24,18 +24,27 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from typing import Optional
+
+from m5.objects import (
+    BadAddr,
+    BaseXBar,
+    Cache,
+    L2XBar,
+    Port,
+    SystemXBar,
+)
+
+from ....isas import ISA
+from ....utils.override import *
+from ...boards.abstract_board import AbstractBoard
 from ..abstract_cache_hierarchy import AbstractCacheHierarchy
-from .abstract_classic_cache_hierarchy import AbstractClassicCacheHierarchy
 from ..abstract_two_level_cache_hierarchy import AbstractTwoLevelCacheHierarchy
+from .abstract_classic_cache_hierarchy import AbstractClassicCacheHierarchy
 from .caches.l1dcache import L1DCache
 from .caches.l1icache import L1ICache
 from .caches.l2cache import L2Cache
 from .caches.mmu_cache import MMUCache
-from ...boards.abstract_board import AbstractBoard
-from ....isas import ISA
-from m5.objects import Cache, L2XBar, BaseXBar, SystemXBar, BadAddr, Port
-
-from ....utils.override import *
 
 
 class PrivateL1SharedL2CacheHierarchy(
@@ -47,14 +56,13 @@ class PrivateL1SharedL2CacheHierarchy(
     inclusive with respect to the split I/D L1 and MMU caches.
     """
 
-    @staticmethod
-    def _get_default_membus() -> SystemXBar:
+    def _get_default_membus(self) -> SystemXBar:
         """
         A method used to obtain the default memory bus of 64 bit in width for
         the PrivateL1SharedL2 CacheHierarchy.
 
         :returns: The default memory bus for the PrivateL1SharedL2
-        CacheHierarchy.
+                  CacheHierarchy.
 
         :rtype: SystemXBar
         """
@@ -71,7 +79,7 @@ class PrivateL1SharedL2CacheHierarchy(
         l1d_assoc: int = 8,
         l1i_assoc: int = 8,
         l2_assoc: int = 16,
-        membus: BaseXBar = _get_default_membus.__func__(),
+        membus: Optional[BaseXBar] = None,
     ) -> None:
         """
         :param l1d_size: The size of the L1 Data Cache (e.g., "32kB").
@@ -81,7 +89,8 @@ class PrivateL1SharedL2CacheHierarchy(
         :param l1i_assoc: The associativity of the L1 Instruction Cache.
         :param l2_assoc: The associativity of the L2 Cache.
         :param membus: The memory bus. This parameter is optional parameter and
-        will default to a 64 bit width SystemXBar is not specified.
+                       will default to a 64 bit width SystemXBar is not
+                       specified.
         """
 
         AbstractClassicCacheHierarchy.__init__(self=self)
@@ -95,7 +104,7 @@ class PrivateL1SharedL2CacheHierarchy(
             l2_assoc=l2_assoc,
         )
 
-        self.membus = membus
+        self.membus = membus if membus else self._get_default_membus()
 
     @overrides(AbstractClassicCacheHierarchy)
     def get_mem_side_port(self) -> Port:
@@ -107,7 +116,6 @@ class PrivateL1SharedL2CacheHierarchy(
 
     @overrides(AbstractCacheHierarchy)
     def incorporate_cache(self, board: AbstractBoard) -> None:
-
         # Set up the system port for functional access from the simulator.
         board.connect_system_port(self.membus.cpu_side_ports)
 
@@ -143,7 +151,6 @@ class PrivateL1SharedL2CacheHierarchy(
             self._setup_io_cache(board)
 
         for i, cpu in enumerate(board.get_processor().get_cores()):
-
             cpu.connect_icache(self.l1icaches[i].cpu_side)
             cpu.connect_dcache(self.l1dcaches[i].cpu_side)
 

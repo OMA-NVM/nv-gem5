@@ -41,6 +41,7 @@
 #include "debug/GPUMem.hh"
 #include "debug/GPUShader.hh"
 #include "debug/GPUWgLatency.hh"
+#include "dev/amdgpu/hwreg_defines.hh"
 #include "gpu-compute/dispatcher.hh"
 #include "gpu-compute/gpu_command_processor.hh"
 #include "gpu-compute/gpu_static_inst.hh"
@@ -63,6 +64,7 @@ Shader::Shader(const Params &p) : ClockedObject(p),
     impl_kern_end_rel(p.impl_kern_end_rel),
     coissue_return(1),
     trace_vgpr_all(1), n_cu((p.CUs).size()), n_wf(p.n_wf),
+    n_cu_per_sqc(p.cu_per_sqc),
     globalMemSize(p.globalmem),
     nextSchedCu(0), sa_n(0), gpuCmdProc(*p.gpu_cmd_proc),
     _dispatcher(*p.dispatcher), systemHub(p.system_hub),
@@ -72,14 +74,24 @@ Shader::Shader(const Params &p) : ClockedObject(p),
     gpuCmdProc.setShader(this);
     _dispatcher.setShader(this);
 
+    // These apertures are set by the driver. In full system mode that is done
+    // using a PM4 packet but the emulated SE mode driver does not set them
+    // explicitly, so we need to define some reasonable defaults here.
     _gpuVmApe.base = ((Addr)1 << 61) + 0x1000000000000L;
     _gpuVmApe.limit = (_gpuVmApe.base & 0xFFFFFF0000000000UL) | 0xFFFFFFFFFFL;
 
-    _ldsApe.base = ((Addr)1 << 61) + 0x0;
+    _ldsApe.base = 0x1000000000000;
     _ldsApe.limit =  (_ldsApe.base & 0xFFFFFFFF00000000UL) | 0xFFFFFFFF;
 
-    _scratchApe.base = ((Addr)1 << 61) + 0x100000000L;
+    _scratchApe.base = 0x2000000000000;
     _scratchApe.limit = (_scratchApe.base & 0xFFFFFFFF00000000UL) | 0xFFFFFFFF;
+
+    // The scratch and LDS address can be queried starting in gfx900. The
+    // base addresses are in the SH_MEM_BASES 32-bit register. The upper 16
+    // bits are for the LDS address and the lower 16 bits are for scratch
+    // address. In both cases the 16 bits represent bits 63:48 of the address.
+    // This means bits 47:0 of the base address is always zero.
+    setHwReg(HW_REG_SH_MEM_BASES, 0x00010002);
 
     shHiddenPrivateBaseVmid = 0;
 
@@ -209,6 +221,13 @@ Shader::prepareInvalidate(HSAQueueEntry *task) {
         _dispatcher.updateInvCounter(kernId, +1);
         // all necessary INV flags are all set now, call cu to execute
         cuList[i_cu]->doInvalidate(req, task->dispatchId());
+
+
+        // A set of CUs share a single SQC cache. Send a single invalidate
+        // request to each SQC
+        if ((i_cu % n_cu_per_sqc) == 0) {
+            cuList[i_cu]->doSQCInvalidate(req, task->dispatchId());
+        }
 
         // I don't like this. This is intrusive coding.
         cuList[i_cu]->resetRegisterPool();
@@ -519,8 +538,41 @@ Shader::notifyCuSleep() {
     panic_if(_activeCus <= 0 || _activeCus > cuList.size(),
              "Invalid activeCu size\n");
     _activeCus--;
-    if (!_activeCus)
+    if (!_activeCus) {
         stats.shaderActiveTicks += curTick() - _lastInactiveTick;
+
+        if (kernelExitRequested) {
+            kernelExitRequested = false;
+            if (blitKernel) {
+                exitSimLoop("GPU Blit Kernel Completed");
+            } else {
+                exitSimLoop("GPU Kernel Completed");
+            }
+        }
+    }
+}
+
+void
+Shader::decNumOutstandingInvL2s()
+{
+    num_outstanding_invl2s--;
+
+    if (num_outstanding_invl2s == 0 && !deferred_dispatches.empty()) {
+        for (auto &dispatch : deferred_dispatches) {
+            gpuCmdProc.submitDispatchPkt(std::get<0>(dispatch),
+                                         std::get<1>(dispatch),
+                                         std::get<2>(dispatch));
+        }
+        deferred_dispatches.clear();
+    }
+}
+
+void
+Shader::addDeferredDispatch(void *raw_pkt, uint32_t queue_id,
+                            Addr host_pkt_addr)
+{
+    deferred_dispatches.push_back(
+            std::make_tuple(raw_pkt, queue_id, host_pkt_addr));
 }
 
 /**
@@ -555,31 +607,31 @@ Shader::ShaderStats::ShaderStats(statistics::Group *parent, int wf_size)
                "vector instruction destination operand distribution")
 {
     allLatencyDist
-        .init(0, 1600000, 10000)
+        .init(0, 1600000-1, 10000)
         .flags(statistics::pdf | statistics::oneline);
 
     loadLatencyDist
-        .init(0, 1600000, 10000)
+        .init(0, 1600000-1, 10000)
         .flags(statistics::pdf | statistics::oneline);
 
     storeLatencyDist
-        .init(0, 1600000, 10000)
+        .init(0, 1600000-1, 10000)
         .flags(statistics::pdf | statistics::oneline);
 
     initToCoalesceLatency
-        .init(0, 1600000, 10000)
+        .init(0, 1600000-1, 10000)
         .flags(statistics::pdf | statistics::oneline);
 
     rubyNetworkLatency
-        .init(0, 1600000, 10000)
+        .init(0, 1600000-1, 10000)
         .flags(statistics::pdf | statistics::oneline);
 
     gmEnqueueLatency
-        .init(0, 1600000, 10000)
+        .init(0, 1600000-1, 10000)
         .flags(statistics::pdf | statistics::oneline);
 
     gmToCompleteLatency
-        .init(0, 1600000, 10000)
+        .init(0, 1600000-1, 10000)
         .flags(statistics::pdf | statistics::oneline);
 
     coalsrLineAddresses
@@ -595,7 +647,7 @@ Shader::ShaderStats::ShaderStats(statistics::Group *parent, int wf_size)
         ccprintf(namestr, "%s.cacheBlockRoundTrip%d",
                  static_cast<Shader*>(parent)->name(), idx);
         cacheBlockRoundTrip[idx]
-            .init(0, 1600000, 10000)
+            .init(0, 1600000-1, 10000)
             .name(namestr.str())
             .desc("Coalsr-to-coalsr time for the Nth cache block in an inst")
             .flags(statistics::pdf | statistics::oneline);

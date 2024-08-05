@@ -1,3 +1,291 @@
+# Version 24.0
+
+gem5 Version 24.0 is the first major release of 2024.
+During this time there have been 298 pull requests merged, comprising of over 600 commits, from 56 unique contributors.
+
+## API and user-facing changes
+
+* The GCN3 GPU model has been removed in favor of the newer VEGA_X85 GPU model.
+* gem5 now supports building, running, and simulating Ubuntu 24.04.
+
+### Compiler and OS support
+
+As of this release gem5 support Clang version 6 to 16 and GCC version 10 to 13.
+While other compilers and versions may work, they are not regularly tested.
+
+gem5 now supports building, running, and simulating on Ubuntu 24.04.
+We continue to support 22.04 with 20.04 being deprecated in the coming year.
+The majority of our testing is done on Ubuntu LTS systems though Apple Silicon machines and other Linux distributions have also been used regularly during development.
+Improvements have been made to ensure a wider support of operating systems.
+
+## New features
+
+### gem5 MultiSim: Multiprocessing for gem5
+
+The gem5 "MultiSim" module allows for multiple simulations to be run from a single gem5 execution via a single gem5 configuration script.
+This allows for multiple simulations to be run in parallel in a structured manner.
+
+To use MultiSim first create multiple simulators and add them to the MultiSim with the `add_simulator` function.
+If needed, limit the maximum number of parallel processes with the `set_num_processes` function.
+Then run the simulations in parallel with the `gem5` binary using  `-m gem5.utils.multisim`.
+
+Here is an example of how to use MultiSim:
+
+```python
+import gem5.util.multisim as multisim
+
+# Set the maximum number of processes to run in parallel
+multisim.set_num_processes(4)
+
+# Create multiple simulators.
+# In this case, one for each workload in the benchmark suite.
+for workload in benchmark_suite:
+    board = X86Board(
+        # ...
+    )
+    board.set_workload(workload)
+
+    # Useful to set the ID here. This is used to create unique output
+    # directorires for each gem5 process and can be used to idenfify and
+    # run gem5 processes individually.
+    simulator = Simulator(board, id=f"{workload.get_id()}")
+    multisim.add_simulator(simulator)
+```
+
+Then to run the simulations in parallel:
+
+```sh
+<gem5 binary> -m gem5.utils.multisim <config script>
+```
+
+The output directory ("m5out" by default) will contain sub-directories for each simulation run.
+The sub-directory will be named after the simulator ID set in the configuration script.
+We therefore recommend setting the simulator ID to something meaningful to help identify the output directories (i.e., the workload run or something identifying the meaningful characteristics of the simulated system in comparison to others).
+
+If only one simulation specified in the config needs run, you can do so with:
+
+```sh
+<gem5 binary>  <config script> --list # Lists the simulations by ID
+
+<gem5 binary> <config script> <ID> # Run the simulation with the specified ID.
+```
+
+Example scripts of using MultiSim can be found in "configs/example/gem5_library/multisim".
+
+
+### RISC-V Vector Extension Support
+
+There have been significant improvements to the RVV support in gem5 including
+
+* Fixed viota (#1137)
+* Fixed vrgather (#1134)
+* Added RVV FP16 support (#1123)
+* Fixed widening and narrowing instructions (#1079)
+* Fixed bug in vfmv.f.s (#863)
+* Add unit stride segment loads and stores (#851) (#913)
+* Fix vl in masked load/store (#830)
+* Add unit-stride loads (#794)
+* Fix many RVV instructions (#814) (#805) (#715)
+
+### General RISC-V bugfixes
+
+* Fixed problem in TLB lookup (#1264)
+* Fixed sign-extended branch target (#1173)
+* Fixed compressed jump instructions (#1163)
+* Fixed GDB connection (#1152)
+* Fixed CSR behavior (#1099)
+* Add Integer conditional operations Zicond (#1078)
+* Add RISC-V Semihosting support (#681)
+* Added more detailed instruction types (#589)
+* Fixed 32-bit m5op arguments (#900)
+* Fixed c.fswsp and c.fsw (#998) (#1005)
+* Update PLIC implementation (#886)
+* Fix fflags behavior in O3 (#868)
+* Add support for local interrupts (#813)
+* Removebit 63 of physical address (#756)
+
+## Improvements
+
+* Added an new generator which can generate requests based on [spatter](https://github.com/hpcgarage/spatter) patterns.
+* KVM is now supported in the gem5 Standard Library ARM Board.
+* Generic Cache template added to the Standard Library: https://github.com/gem5/gem5/pull/745
+* Support added for partitioning caches.
+* The Standard Library `obtain_resources` function can request multiple resources at once thus reducing delay associated with multiple requests.
+* An official gem5 DevContainer has been added to the gem5 repository.
+This can be used to build and run gem5 in consistent environment and enables GitHub Codespaces support.
+
+### gem5 Python Statistics
+
+The gem5 Python statistics API has been improved.
+The gem5 Project's general intent with this improvement is make it easier and more desirable to obtain and interact with gem5 simulation statistics via Python.
+
+For example, the following code snippet demonstrates how to obtain statistics from a gem5 simulation:
+
+```python
+from m5.stats.gem5stats import get_simstat
+
+## Setup and run the configuation ...
+simstat = get_simstat(board)
+
+# Print the number of cycles the CPU at index 0 has executed.
+print(simstat.cpu[0].numCycles)
+
+# Strings can also be used to access statistics.
+print(simstat['cpu'][0]['numCycles'])
+
+# Print the total number of cycles executed by all CPUs.
+print(sum(simstat.cpu[i].numCycles for i in range(len(simstat.cpu))))
+```
+
+We hope the usage of the gem5 Python statistics API will be more intuitive and easier to use while allowing better processing of statistical data.
+
+### GPU Model
+
+* Support for MI300X and MI200 GPU models including their features and most instructions.
+* ROCm 6.1 disk image and compile docker files have been added. ROCm 5.4.2 and 4.2 resources are removed.
+* The deprecated GCN3 ISA has been removed. Use VEGA instead.
+
+## Bug Fixes
+
+* An integer overflow error known to affect the `AddrRange` class has been fixed.
+* Fix fflags behavior of floating point instruction in RISC-V for Out-of-Order CPUs.
+
+### Arm FEAT_MPAM Support
+
+An initial implementation of FEAT_MPAM has been introduced in gem5 with the capability to statically partition
+classic caches. Guidance on how to use this is available on a Arm community [blog post](https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/gem5-cache-partitioning)
+
+
+# Version 23.1
+
+gem5 Version 23.1 is our first release where the development has been on GitHub.
+During this release, there have been 362 pull requests merged which comprise 416 commits with 51 unique contributors.
+
+## Significant API and user-facing changes
+
+### The gem5 build can is now configured with `kconfig`
+
+- Most gem5 builds without customized options (excluding double dash options) (e.g. , build/X86/gem5.opt) are backwards compatible and require no changes to your current workflows.
+- All of the default builds in `build_opts` are unchanged and still available.
+- However, if you want to specialize your build. For example, use customized ruby protocol. The command `scons PROTOCOL=<PROTOCAL_NAME> build/ALL/gem5.opt` will not work anymore. you now have to use `scons <kconfig command>` to update the ruby protocol as example. The double dash options (`--without-tcmalloc`, `--with-asan` and so on) are still continue to work as normal.
+- For more details refer to the documentation here: [kconfig documentation](https://www.gem5.org/documentation/general_docs/kconfig_build_system/)
+
+### Standard library improvements
+
+#### `WorkloadResource` added to resource specialization
+
+- The `Workload` and `CustomWorkload` classes are now deprecated. They have been transformed into wrappers for the `obtain_resource` and `WorkloadResource` classes in `resource.py`, respectively.
+- Code utilizing the older API will continue to function as expected but will trigger a warning message. To update code using the `Workload` class, change the call from `Workload(id='resource_id', resource_version='1.0.0')` to `obtain_resource(id='resource_id', resource_version='1.0.0')`. Similarly, to update code using the `CustomWorkload` class, change the call from `CustomWorkload(function=func, parameters=params)` to `WorkloadResource(function=func, parameters=params)`.
+- Workload resources in gem5 can now be directly acquired using the `obtain_resource` function, just like other resources.
+
+#### Introducing Suites
+
+Suites is a new category of resource being introduced in gem5. Documentation of suites can be found here: [suite documentation](https://www.gem5.org/documentation/gem5-stdlib/suites).
+
+#### Other API changes
+
+- All resource object now have their own `id` and `category`. Each resource class has its own `__str__()` function which return its information in the form of **category(id, version)** like **BinaryResource(id='riscv-hello', resource_version='1.0.0')**.
+- Users can use GEM5_RESOURCE_JSON  and GEM5_RESOURCE_JSON_APPEND env variables to overwrite all the data sources with the provided JSON and append a JSON file to all the data source respectively. More information can be found [here](https://www.gem5.org/documentation/gem5-stdlib/using-local-resources).
+
+### Other user-facing changes
+
+- Added support for clang 15 and clang 16
+- gem5 no longer supports building on Ubuntu 18.04
+- GCC 7, GCC 9, and clang 6 are no longer supported
+- Two `DRAMInterface` stats have changed names (`bytesRead` and `bytesWritten`). For instance, `board.memory.mem_ctrl.dram.bytesRead` and `board.memory.mem_ctrl.dram.bytesWritten`. These are changed to `dramBytesRead` and `dramBytesWritten` so they don't collide with the stat with the same name in `AbstractMemory`.
+- The stats for `NVMInterface` (`bytesRead` and `bytesWritten`) have been change to `nvmBytesRead` and `nvmBytesWritten` as well.
+
+## Full-system GPU model improvements
+
+- Support for up to latest ROCm 5.7.1.
+- Various changes to enable PyTorch/TensorFlow simulations.
+- New packer disk image script containing ROCm 5.4.2, PyTorch 2.0.1, and Tensorflow 2.11.
+- GPU instructions can now perform atomics on host addresses.
+- The provided configs scripts can now run KVM on more restrictive setups.
+- Add support to checkpoint and restore between kernels in GPUFS, including adding various AQL, HSA Queue, VMID map, MQD attributes, GART translations, and PM4Queues to GPU checkpoints
+- move GPU cache recorder code to RubyPort instead of Sequencer/GPUCoalescer to allow checkpointing to occur
+- add support for flushing GPU caches, as well as cache cooldown/warmup support, for checkpoints
+- Update vega10_kvm.py to add checkpointing instructions
+
+## SE mode GPU model improvements
+
+- started adding support for mmap'ing inputs for GPUSE tests, which reduces their runtime by 8-15% per run
+
+## GPU model improvements
+
+- update GPU VIPER and Coalescer support to ensure correct replacement policy behavior when multiple requests from the same CU are concurrently accessing the same line
+- fix bug with GPU VIPER to resolve a race conflict for loads that bypass the TCP (L1D$)
+- fix bug with MRU replacement policy updates in GPU SQC (I$)
+- update GPU and Ruby debug prints to resolve various small errors
+- Add configurable GPU L1,L2 num banks and L2 latencies
+- Add decodings for new MI100 VOP2 insts
+- Add GPU GLC Atomic Resource Constraints to better model how atomic resources are shared at GPU TCC (L2$)
+- Update GPU tester to work with both requests that bypass all caches (SLC) and requests that bypass only the TCP (L1D$)
+- Fixes for how write mask works for GPU WB L2 caches
+- Added support for WB and WT GPU atomics
+- Added configurable support to better model the latency of GPU atomic requests
+- fix GPU's default number of HW barrier/CU to better model amount of concurrency GPU CUs should have
+
+## RISC-V RVV 1.0 implemented
+
+This was a huge undertaking by a large number of people!
+Some of these people include Adrià Armejach who pushed it over the finish line, Xuan Hu who pushed the most recent version to gerrit that Adrià picked up,
+Jerin Joy who did much of the initial work, and many others who contributed to the implementation including Roger Chang, Hoa Nguyen who put significant effort into testing and reviewing the code.
+
+- Most of the instructions in the 1.0 spec implemented
+- Works with both FS and SE mode
+- Compatible with Simple CPUs, the O3, and the minor CPU models
+- User can specify the width of the vector units
+- Future improvements
+  - Widening/narrowing instructions are *not* implemented
+  - The model for executing memory instructions is not very high performance
+  - The statistics are not correct for counting vector instruction execution
+
+## ArmISA changes/improvements
+
+- Architectural support for the following extensions:
+* FEAT_TLBIRANGE
+* FEAT_FGT
+* FEAT_TCR2
+* FEAT_SCTLR2
+
+- Arm support for SVE instructions improved
+- Fixed some FEAT_SEL2 related issues:
+  - [Fix virtual interrupt logic in secure mode](https://github.com/gem5/gem5/pull/584)
+  - [Make interrupt masking handle VHE/SEL2 cases](https://github.com/gem5/gem5/pull/430)
+- Removed support for Arm Jazelle and ThumbEE
+- Implementation of an Arm Capstone Disassembler
+
+## Other notable changes/improvements
+
+- Improvements to the CHI coherence protocol implementation
+- Far atomics implemented in CHI
+- Ruby now supports using the prefetchers from the classic caches, if the protocol supports it. CHI has been extended to support the classic prefetchers.
+- Bug in RISC-V TLB to fixed to correctly count misses and hits
+- Added new RISC-V Zcb instructions https://github.com/gem5/gem5/pull/399
+- RISC-V can now use a separate binary for the bootloader and kernel in FS mode
+- DRAMSys integration updated to latest DRAMSys version (5.0)
+- Improved support for RISC-V privilege modes
+- Fixed bug in switching CPUs with RISC-V
+- CPU branch preditor refactoring to prepare for decoupled front end support
+- Perf is now optional when using the KVM CPU model
+- Improvements to the gem5-SST bridge including updating to SST 13.0
+- Improved formatting of documentation in stdlib
+- By default use isort for python imports in style
+- Many, many testing improvements during the migration to GitHub actions
+- Fixed the elastic trace replaying logic (TraceCPU)
+
+## Known Bugs/Issues
+
+- [RISC-V RVV Bad execution of riscv rvv vss instruction](https://github.com/gem5/gem5/issues/594)
+- [RISC-V Vector Extension float32_t bugs/unsupported widening instructions](https://github.com/gem5/gem5/issues/442)
+- [Implement AVX xsave/xstor to avoid workaround when checkpointing](https://github.com/gem5/gem5/issues/434)
+- [Adding Vector Segmented Loads/Stores to RISC-V V 1.0 implementation](https://github.com/gem5/gem5/issues/382)
+- [Integer overflow in AddrRange subset check](https://github.com/gem5/gem5/issues/240)
+- [RISCV64 TLB refuses to access upper half of physical address space](https://github.com/gem5/gem5/issues/238)
+- [Bug when trying to restore checkpoints in SPARC: “panic: panic condition !pte occurred: Tried to execute unmapped address 0.”](https://github.com/gem5/gem5/issues/197)
+- [BaseCache::recvTimingResp can trigger an assertion error from getTarget() due to MSHR in senderState having no targets](https://github.com/gem5/gem5/issues/100)
+
 # Version 23.0.1.0
 
 This minor release incorporates documentation updates, bug fixes, and some minor improvements.

@@ -24,43 +24,50 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.objects import (
-    Port,
-    IOXBar,
-    Bridge,
-    BadAddr,
-    Terminal,
-    PciVirtIO,
-    VncServer,
-    AddrRange,
-    ArmSystem,
-    ArmRelease,
-    ArmFsLinux,
-    VirtIOBlock,
-    CowDiskImage,
-    RawDiskImage,
-    VoltageDomain,
-    SrcClockDomain,
-    ArmDefaultRelease,
-    VExpress_GEM5_Base,
-    VExpress_GEM5_Foundation,
-    SimObject,
+import os
+from abc import ABCMeta
+from typing import (
+    List,
+    Sequence,
+    Tuple,
 )
 
-import os
 import m5
-from abc import ABCMeta
+from m5.objects import (
+    AddrRange,
+    ArmDefaultRelease,
+    ArmFsLinux,
+    ArmRelease,
+    ArmSystem,
+    BadAddr,
+    Bridge,
+    CowDiskImage,
+    GenericTimer,
+    IOXBar,
+    PciVirtIO,
+    Port,
+    RawDiskImage,
+    SimObject,
+    SrcClockDomain,
+    Terminal,
+    VExpress_GEM5_Base,
+    VExpress_GEM5_Foundation,
+    VExpress_GEM5_V1,
+    VirtIOBlock,
+    VncServer,
+    VoltageDomain,
+)
+
 from ...isas import ISA
-from ...utils.requires import requires
-from ...utils.override import overrides
-from typing import List, Sequence, Tuple
-from .abstract_board import AbstractBoard
 from ...resources.resource import AbstractResource
-from .kernel_disk_workload import KernelDiskWorkload
-from ..cachehierarchies.classic.no_cache import NoCache
-from ..processors.abstract_processor import AbstractProcessor
-from ..memory.abstract_memory_system import AbstractMemorySystem
+from ...utils.override import overrides
+from ...utils.requires import requires
 from ..cachehierarchies.abstract_cache_hierarchy import AbstractCacheHierarchy
+from ..cachehierarchies.classic.no_cache import NoCache
+from ..memory.abstract_memory_system import AbstractMemorySystem
+from ..processors.abstract_processor import AbstractProcessor
+from .abstract_board import AbstractBoard
+from .kernel_disk_workload import KernelDiskWorkload
 
 
 class ArmBoard(ArmSystem, AbstractBoard, KernelDiskWorkload):
@@ -75,6 +82,7 @@ class ArmBoard(ArmSystem, AbstractBoard, KernelDiskWorkload):
 
     **Limitations**
     * stage2 walker ports are ignored.
+    * KVM cores only work with VExpress_GEM5_V1
     """
 
     __metaclass__ = ABCMeta
@@ -88,7 +96,6 @@ class ArmBoard(ArmSystem, AbstractBoard, KernelDiskWorkload):
         platform: VExpress_GEM5_Base = VExpress_GEM5_Foundation(),
         release: ArmRelease = ArmDefaultRelease(),
     ) -> None:
-
         # The platform and the clk has to be set before calling the super class
         self._platform = platform
         self._clk_freq = clk_freq
@@ -117,7 +124,6 @@ class ArmBoard(ArmSystem, AbstractBoard, KernelDiskWorkload):
 
     @overrides(AbstractBoard)
     def _setup_board(self) -> None:
-
         # This board is expected to run full-system simulation.
         # Loading ArmFsLinux() from `src/arch/arm/ArmFsWorkload.py`
         self.workload = ArmFsLinux()
@@ -191,7 +197,7 @@ class ArmBoard(ArmSystem, AbstractBoard, KernelDiskWorkload):
 
     def _setup_io_devices(self) -> None:
         """
-        This method first sets up the platform. ARM uses `realview` platform.
+        This method first sets up the platform. ARM uses ``realview`` platform.
         Most of the on-chip and off-chip devices are setup by the realview
         platform. Once realview is setup, we connect the I/O devices to the
         I/O bus.
@@ -208,12 +214,22 @@ class ArmBoard(ArmSystem, AbstractBoard, KernelDiskWorkload):
         if hasattr(self.realview.gic, "cpu_addr"):
             self.gic_cpu_addr = self.realview.gic.cpu_addr
 
+        # For KVM cpus, we need to simulate the GIC.
+        if any(core.is_kvm_core() for core in self.processor.get_cores()):
+            # The following is taken from
+            # `tests/fs/linux/arm/configs/arm_generic.py`:
+            # Arm KVM regressions will use a simulated GIC. This means that in
+            # order to work we need to remove the system interface of the
+            # generic timer from the DTB and we need to inform the MuxingKvmGic
+            # class to use the gem5 GIC instead of relying on the host one
+            GenericTimer.generateDeviceTree = SimObject.generateDeviceTree
+            self.realview.gic.simulate_gic = True
+
         # IO devices has to setup before incorporating the caches in the case
         # of ruby caches. Otherwise the DMA controllers are incorrectly
         # created. The IO device has to be attached first. This is done in the
         # realview class.
         if self.get_cache_hierarchy().is_ruby():
-
             # All the on-chip devices are attached in this method.
             self.realview.attachOnChipIO(
                 self.iobus,
@@ -332,16 +348,19 @@ class ArmBoard(ArmSystem, AbstractBoard, KernelDiskWorkload):
         self.generateDtb(self._get_dtb_filename())
 
     def _get_dtb_filename(self) -> str:
-        """Returns the dtb file location.
+        """Returns the ``dtb`` file location.
 
-        **Note**: This may be the _expected_ file location when generated. A
-        file may not exist at this location when this function is called."""
+        .. note::
+
+            This may be the ``_expected_`` file location when generated. A
+            file may not exist at this location when this function is called.
+        """
 
         return os.path.join(m5.options.outdir, "device.dtb")
 
     def _add_pci_device(self, pci_device: PciVirtIO) -> None:
         """Attaches the PCI Device to the board. All devices will be added to
-        `self.pci_device` as a pre-instantiation setup.
+        ``self.pci_device`` as a pre-instantiation setup.
 
         :param pci_device: The PCI Device to add.
         """
@@ -359,7 +378,6 @@ class ArmBoard(ArmSystem, AbstractBoard, KernelDiskWorkload):
 
     @overrides(KernelDiskWorkload)
     def _add_disk_to_board(self, disk_image: AbstractResource):
-
         self._image = CowDiskImage(
             child=RawDiskImage(
                 read_only=True, image_file=disk_image.get_local_path()
@@ -373,27 +391,27 @@ class ArmBoard(ArmSystem, AbstractBoard, KernelDiskWorkload):
     def _setup_memory_ranges(self) -> None:
         """
         The ArmBoard's memory can only be setup after realview is setup. We set
-        this up in the `_setup_board` function.
+        this up in the ``_setup_board`` function.
         """
         pass
 
     @overrides(KernelDiskWorkload)
     def get_default_kernel_args(self) -> List[str]:
-
         # The default kernel string is taken from the devices.py file.
         return [
             "console=ttyAMA0",
             "lpj=19988480",
             "norandmaps",
             "root={root_value}",
+            "disk_device={disk_device}",
             "rw",
             f"mem={self.get_memory().get_size()}",
         ]
 
     @overrides(SimObject)
     def createCCObject(self):
-        """We override this function as it is called in `m5.instantiate`. This
-        means we can insert a check to ensure the `_connect_things` function
+        """We override this function as it is called in ``m5.instantiate``. This
+        means we can insert a check to ensure the ``_connect_things`` function
         has been run.
         """
         super()._connect_things_check()

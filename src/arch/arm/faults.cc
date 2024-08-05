@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2012-2014, 2016-2019, 2022 Arm Limited
+ * Copyright (c) 2010, 2012-2014, 2016-2019, 2022, 2024 Arm Limited
  * All rights reserved
  *
  * The license below extends only to copyright in the software and shall
@@ -44,6 +44,7 @@
 #include "arch/arm/insts/static_inst.hh"
 #include "arch/arm/interrupts.hh"
 #include "arch/arm/isa.hh"
+#include "arch/arm/regs/misc_accessors.hh"
 #include "arch/arm/self_debug.hh"
 #include "arch/arm/system.hh"
 #include "arch/arm/utility.hh"
@@ -378,22 +379,6 @@ ArmFault::getSyndromeReg64() const
     }
 }
 
-MiscRegIndex
-ArmFault::getFaultAddrReg64() const
-{
-    switch (toEL) {
-      case EL1:
-        return MISCREG_FAR_EL1;
-      case EL2:
-        return MISCREG_FAR_EL2;
-      case EL3:
-        return MISCREG_FAR_EL3;
-      default:
-        panic("Invalid exception level");
-        break;
-    }
-}
-
 void
 ArmFault::setSyndrome(ThreadContext *tc, MiscRegIndex syndrome_reg)
 {
@@ -565,7 +550,6 @@ ArmFault::invoke32(ThreadContext *tc, const StaticInstPtr &inst)
         cpsr.i = 1;
     }
     cpsr.it1 = cpsr.it2 = 0;
-    cpsr.j = 0;
     cpsr.pan = span ? 1 : saved_cpsr.pan;
     tc->setMiscReg(MISCREG_CPSR, cpsr);
 
@@ -622,8 +606,6 @@ ArmFault::invoke32(ThreadContext *tc, const StaticInstPtr &inst)
     PCState pc(new_pc);
     pc.thumb(cpsr.t);
     pc.nextThumb(pc.thumb());
-    pc.jazelle(cpsr.j);
-    pc.nextJazelle(pc.jazelle());
     pc.aarch64(!cpsr.width);
     pc.nextAArch64(!cpsr.width);
     pc.illegalExec(false);
@@ -666,7 +648,6 @@ ArmFault::invoke64(ThreadContext *tc, const StaticInstPtr &inst)
         // Force some bitfields to 0
         spsr.q = 0;
         spsr.it1 = 0;
-        spsr.j = 0;
         spsr.ge = 0;
         spsr.it2 = 0;
         spsr.t = 0;
@@ -1117,13 +1098,15 @@ AbortFault<T>::invoke(ThreadContext *tc, const StaticInstPtr &inst)
         if (stage2) {
             // stage 2 fault, set HPFAR_EL2 to the faulting IPA
             // and FAR_EL2 to the Original VA
-            tc->setMiscReg(AbortFault<T>::getFaultAddrReg64(), OVAddr);
+            misc_regs::writeRegister<misc_regs::FarAccessor>(
+                tc, OVAddr, this->toEL);
             tc->setMiscReg(MISCREG_HPFAR_EL2, bits(faultAddr, 47, 12) << 4);
 
             DPRINTF(Faults, "Abort Fault (Stage 2) VA: 0x%x IPA: 0x%x\n",
                     OVAddr, faultAddr);
         } else {
-            tc->setMiscReg(AbortFault<T>::getFaultAddrReg64(), faultAddr);
+            misc_regs::writeRegister<misc_regs::FarAccessor>(
+                tc, faultAddr, this->toEL);
         }
     }
 }
@@ -1521,7 +1504,7 @@ PCAlignmentFault::invoke(ThreadContext *tc, const StaticInstPtr &inst)
     ArmFaultVals<PCAlignmentFault>::invoke(tc, inst);
     assert(from64);
     // Set the FAR
-    tc->setMiscReg(getFaultAddrReg64(), faultPC);
+    misc_regs::writeRegister<misc_regs::FarAccessor>(tc, faultPC, toEL);
 }
 
 bool
@@ -1665,8 +1648,7 @@ Watchpoint::invoke(ThreadContext *tc, const StaticInstPtr &inst)
 {
     ArmFaultVals<Watchpoint>::invoke(tc, inst);
     // Set the FAR
-    tc->setMiscReg(getFaultAddrReg64(), vAddr);
-
+    misc_regs::writeRegister<misc_regs::FarAccessor>(tc, vAddr, toEL);
 }
 
 bool

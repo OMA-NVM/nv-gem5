@@ -28,11 +28,10 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
-from m5.proxy import *
-
 from m5.objects.BaseTLB import BaseTLB
 from m5.objects.ClockedObject import ClockedObject
+from m5.params import *
+from m5.proxy import *
 
 
 class RiscvPagetableWalker(ClockedObject):
@@ -46,7 +45,7 @@ class RiscvPagetableWalker(ClockedObject):
         4, "Number of outstanding walks that can be squashed per cycle"
     )
     # Grab the pma_checker from the MMU
-    pma_checker = Param.PMAChecker(Parent.any, "PMA Checker")
+    pma_checker = Param.BasePMAChecker(Parent.any, "PMA Checker")
     pmp = Param.PMP(Parent.any, "PMP")
 
 
@@ -60,5 +59,5 @@ class RiscvTLB(BaseTLB):
         RiscvPagetableWalker(), "page table walker"
     )
     # Grab the pma_checker from the MMU
-    pma_checker = Param.PMAChecker(Parent.any, "PMA Checker")
+    pma_checker = Param.BasePMAChecker(Parent.any, "PMA Checker")
     pmp = Param.PMP(Parent.any, "Physical Memory Protection Unit")

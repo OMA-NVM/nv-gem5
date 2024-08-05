@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2013, 2015-2022 ARM Limited
+# Copyright (c) 2012-2013, 2015-2022, 2024 Arm Limited
 # All rights reserved.
 #
 # The license below extends only to copyright in the software and shall
@@ -33,13 +33,17 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from m5.objects.ArmPMU import ArmPMU
+from m5.objects.ArmSystem import (
+    ArmRelease,
+    SmeVectorLength,
+    SveVectorLength,
+)
+from m5.objects.BaseISA import BaseISA
 from m5.params import *
 from m5.proxy import *
-
 from m5.SimObject import SimObject
-from m5.objects.ArmPMU import ArmPMU
-from m5.objects.ArmSystem import SveVectorLength, SmeVectorLength, ArmRelease
-from m5.objects.BaseISA import BaseISA
+
 
 # Enum for DecoderFlavor
 class DecoderFlavor(Enum):
@@ -48,7 +52,11 @@ class DecoderFlavor(Enum):
 
 class ArmDefaultSERelease(ArmRelease):
     extensions = [
-        "CRYPTO",
+        "FEAT_AES",
+        "FEAT_PMULL",
+        "FEAT_SHA1",
+        "FEAT_SHA256",
+        "FEAT_CRC32",
         # Armv8.1
         "FEAT_LSE",
         "FEAT_RDM",
@@ -161,6 +169,10 @@ class ArmISA(BaseISA):
     id_aa64mmfr2_el1 = Param.UInt64(
         0x0000000000010010, "AArch64 Memory Model Feature Register 2"
     )
+
+    # HAS_SDEFLT | HAS_FORCE_NS | HAS_TIDR | PMG_MAX = 128 |
+    # VPMR_MAX = 7 | HAS_HCR | PARTID_MAX = 256
+    mpamidr_el1 = Param.UInt64(0x34000080001E0100, "MPAM ID Register (EL1)")
 
     # Any access (read/write) to an unimplemented
     # Implementation Defined registers is not causing an Undefined Instruction.

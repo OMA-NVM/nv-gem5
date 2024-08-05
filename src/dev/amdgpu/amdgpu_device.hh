@@ -36,6 +36,7 @@
 
 #include "base/bitunion.hh"
 #include "dev/amdgpu/amdgpu_defines.hh"
+#include "dev/amdgpu/amdgpu_gfx.hh"
 #include "dev/amdgpu/amdgpu_nbio.hh"
 #include "dev/amdgpu/amdgpu_vm.hh"
 #include "dev/amdgpu/memory_manager.hh"
@@ -86,9 +87,8 @@ class AMDGPUDevice : public PciDevice
     /**
      * Structures to hold registers, doorbells, and some frame memory
      */
-    using GPURegMap = std::unordered_map<uint32_t, uint64_t>;
-    GPURegMap regs;
-    std::unordered_map<uint32_t, QueueType> doorbells;
+    std::unordered_map<uint32_t, DoorbellInfo> doorbells;
+    std::unordered_map<uint32_t, PacketPtr> pendingDoorbellPkts;
 
     /**
      * VGA ROM methods
@@ -109,11 +109,22 @@ class AMDGPUDevice : public PciDevice
      * Blocks of the GPU
      */
     AMDGPUNbio nbio;
+    AMDGPUGfx gfx;
     AMDGPUMemoryManager *gpuMemMgr;
     AMDGPUInterruptHandler *deviceIH;
     AMDGPUVM gpuvm;
-    PM4PacketProcessor *pm4PktProc;
     GPUCommandProcessor *cp;
+
+    struct AddrRangeHasher
+    {
+        std::size_t operator()(const AddrRange& k) const
+        {
+            return k.start();
+        }
+    };
+    std::unordered_map<int, PM4PacketProcessor *> pm4PktProcs;
+    std::unordered_map<AddrRange, PM4PacketProcessor *,
+                       AddrRangeHasher> pm4Ranges;
 
     // SDMAs mapped by doorbell offset
     std::unordered_map<uint32_t, SDMAEngine *> sdmaEngs;
@@ -184,16 +195,17 @@ class AMDGPUDevice : public PciDevice
     /**
      * Set handles to GPU blocks.
      */
-    void setDoorbellType(uint32_t offset, QueueType qt);
+    void setDoorbellType(uint32_t offset, QueueType qt, int ip_id = 0);
+    void unsetDoorbell(uint32_t offset);
+    void processPendingDoorbells(uint32_t offset);
     void setSDMAEngine(Addr offset, SDMAEngine *eng);
 
     /**
      * Register value getter/setter. Used by other GPU blocks to change
      * values from incoming driver/user packets.
      */
-    bool haveRegVal(uint32_t addr);
-    uint32_t getRegVal(uint32_t addr);
-    void setRegVal(uint32_t addr, uint32_t value);
+    uint32_t getRegVal(uint64_t addr);
+    void setRegVal(uint64_t addr, uint32_t value);
 
     /**
      * Methods related to translations and system/device memory.

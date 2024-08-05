@@ -36,11 +36,10 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.SimObject import SimObject
 from m5.defines import buildEnv
-from m5.params import *
-
 from m5.objects.FuncUnit import *
+from m5.params import *
+from m5.SimObject import SimObject
 
 
 class IntALU(FUDesc):
@@ -107,6 +106,9 @@ class SIMD_Unit(FUDesc):
         OpDesc(opClass="SimdReduceCmp"),
         OpDesc(opClass="SimdFloatReduceAdd"),
         OpDesc(opClass="SimdFloatReduceCmp"),
+        OpDesc(opClass="SimdExt"),
+        OpDesc(opClass="SimdFloatExt"),
+        OpDesc(opClass="SimdConfig"),
     ]
     count = 4
 
@@ -117,12 +119,29 @@ class PredALU(FUDesc):
 
 
 class ReadPort(FUDesc):
-    opList = [OpDesc(opClass="MemRead"), OpDesc(opClass="FloatMemRead")]
+    opList = [
+        OpDesc(opClass="MemRead"),
+        OpDesc(opClass="FloatMemRead"),
+        OpDesc(opClass="SimdUnitStrideLoad"),
+        OpDesc(opClass="SimdUnitStrideMaskLoad"),
+        OpDesc(opClass="SimdStridedLoad"),
+        OpDesc(opClass="SimdIndexedLoad"),
+        OpDesc(opClass="SimdUnitStrideFaultOnlyFirstLoad"),
+        OpDesc(opClass="SimdWholeRegisterLoad"),
+    ]
     count = 0
 
 
 class WritePort(FUDesc):
-    opList = [OpDesc(opClass="MemWrite"), OpDesc(opClass="FloatMemWrite")]
+    opList = [
+        OpDesc(opClass="MemWrite"),
+        OpDesc(opClass="FloatMemWrite"),
+        OpDesc(opClass="SimdUnitStrideStore"),
+        OpDesc(opClass="SimdUnitStrideMaskStore"),
+        OpDesc(opClass="SimdStridedStore"),
+        OpDesc(opClass="SimdIndexedStore"),
+        OpDesc(opClass="SimdWholeRegisterStore"),
+    ]
     count = 0
 
 
@@ -132,6 +151,17 @@ class RdWrPort(FUDesc):
         OpDesc(opClass="MemWrite"),
         OpDesc(opClass="FloatMemRead"),
         OpDesc(opClass="FloatMemWrite"),
+        OpDesc(opClass="SimdUnitStrideLoad"),
+        OpDesc(opClass="SimdUnitStrideStore"),
+        OpDesc(opClass="SimdUnitStrideMaskLoad"),
+        OpDesc(opClass="SimdUnitStrideMaskStore"),
+        OpDesc(opClass="SimdStridedLoad"),
+        OpDesc(opClass="SimdStridedStore"),
+        OpDesc(opClass="SimdIndexedLoad"),
+        OpDesc(opClass="SimdIndexedStore"),
+        OpDesc(opClass="SimdUnitStrideFaultOnlyFirstLoad"),
+        OpDesc(opClass="SimdWholeRegisterLoad"),
+        OpDesc(opClass="SimdWholeRegisterStore"),
     ]
     count = 4
 

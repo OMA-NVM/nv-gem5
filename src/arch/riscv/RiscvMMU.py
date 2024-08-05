@@ -35,12 +35,11 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.params import *
-
 from m5.objects.BaseMMU import BaseMMU
-from m5.objects.RiscvTLB import RiscvTLB
 from m5.objects.PMAChecker import PMAChecker
 from m5.objects.PMP import PMP
+from m5.objects.RiscvTLB import RiscvTLB
+from m5.params import *
 
 
 class RiscvMMU(BaseMMU):
@@ -50,7 +49,7 @@ class RiscvMMU(BaseMMU):
 
     itb = RiscvTLB(entry_type="instruction")
     dtb = RiscvTLB(entry_type="data")
-    pma_checker = Param.PMAChecker(PMAChecker(), "PMA Checker")
+    pma_checker = Param.BasePMAChecker(PMAChecker(), "PMA Checker")
     pmp = Param.PMP(PMP(), "Physical Memory Protection Unit")
 
     @classmethod

@@ -24,20 +24,21 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import unittest
-import os
-import io
 import contextlib
+import io
+import os
+import unittest
 from pathlib import Path
-
-from gem5.resources.resource import obtain_resource, BinaryResource
-
-from gem5.isas import ISA
+from unittest.mock import patch
 
 from _m5 import core
 
-from gem5.resources.client_api.client_wrapper import ClientWrapper
-from unittest.mock import patch
+from gem5.isas import ISA
+from gem5.resources.client import _create_clients
+from gem5.resources.resource import (
+    BinaryResource,
+    obtain_resource,
+)
 
 mock_json_path = Path(__file__).parent / "refs/obtain-resource.json"
 
@@ -53,7 +54,11 @@ mock_config_json = {
 
 @patch(
     "gem5.resources.client.clientwrapper",
-    new=ClientWrapper(mock_config_json),
+    new=None,
+)
+@patch(
+    "gem5.resources.client._create_clients",
+    side_effect=lambda x: _create_clients(mock_config_json),
 )
 class TestObtainResourcesCheck(unittest.TestCase):
     def get_resource_dir(cls) -> str:
@@ -70,7 +75,7 @@ class TestObtainResourcesCheck(unittest.TestCase):
             "resources",
         )
 
-    def test_obtain_resources_no_version(self):
+    def test_obtain_resources_no_version(self, mock_create_client):
         """Test that the resource loader returns latest version compatible with that version of gem5 when no version is specified."""
         gem5Version = core.gem5Version
         resource = obtain_resource(
@@ -78,30 +83,32 @@ class TestObtainResourcesCheck(unittest.TestCase):
             resource_directory=self.get_resource_dir(),
             gem5_version="develop",
         )
-        self.assertEquals("1.7.0", resource.get_resource_version())
+        self.assertEqual("1.7.0", resource.get_resource_version())
         self.assertIsInstance(resource, BinaryResource)
-        self.assertEquals(
-            "test description v1.7.0", resource.get_description()
-        )
-        self.assertEquals("src/test-source", resource.get_source())
-        self.assertEquals(ISA.ARM, resource.get_architecture())
+        self.assertEqual("test description v1.7.0", resource.get_description())
+        self.assertEqual("src/test-source", resource.get_source())
+        self.assertEqual(ISA.ARM, resource.get_architecture())
 
-    def test_obtain_resources_with_version_compatible(self):
+    def test_obtain_resources_with_version_compatible(
+        self, mock_create_client
+    ):
         resource = obtain_resource(
             resource_id="test-binary-resource",
             resource_directory=self.get_resource_dir(),
             resource_version="1.5.0",
             gem5_version="develop",
         )
-        self.assertEquals("1.5.0", resource.get_resource_version())
+        self.assertEqual("1.5.0", resource.get_resource_version())
         self.assertIsInstance(resource, BinaryResource)
-        self.assertEquals(
+        self.assertEqual(
             "test description for 1.5.0", resource.get_description()
         )
-        self.assertEquals("src/test-source", resource.get_source())
-        self.assertEquals(ISA.ARM, resource.get_architecture())
+        self.assertEqual("src/test-source", resource.get_source())
+        self.assertEqual(ISA.ARM, resource.get_architecture())
 
-    def test_obtain_resources_with_version_incompatible(self):
+    def test_obtain_resources_with_version_incompatible(
+        self, mock_create_client
+    ):
         resource = None
         f = io.StringIO()
         with contextlib.redirect_stderr(f):
@@ -110,12 +117,6 @@ class TestObtainResourcesCheck(unittest.TestCase):
                 resource_directory=self.get_resource_dir(),
                 resource_version="1.5.0",
             )
-        self.assertTrue(
-            f"warn: Resource test-binary-resource with version 1.5.0 is not known to be compatible with gem5 version {core.gem5Version}. "
-            "This may cause problems with your simulation. This resource's compatibility with different gem5 versions can be found here: "
-            f"https://resources.gem5.org/resources/test-binary-resource/versions"
-            in f.getvalue()
-        )
 
         resource = obtain_resource(
             resource_id="test-binary-resource",
@@ -123,15 +124,15 @@ class TestObtainResourcesCheck(unittest.TestCase):
             resource_version="1.5.0",
             gem5_version="develop",
         )
-        self.assertEquals("1.5.0", resource.get_resource_version())
+        self.assertEqual("1.5.0", resource.get_resource_version())
         self.assertIsInstance(resource, BinaryResource)
-        self.assertEquals(
+        self.assertEqual(
             "test description for 1.5.0", resource.get_description()
         )
-        self.assertEquals("src/test-source", resource.get_source())
-        self.assertEquals(ISA.ARM, resource.get_architecture())
+        self.assertEqual("src/test-source", resource.get_source())
+        self.assertEqual(ISA.ARM, resource.get_architecture())
 
-    def test_obtain_resources_no_version_invalid_id(self):
+    def test_obtain_resources_no_version_invalid_id(self, mock_create_client):
         with self.assertRaises(Exception) as context:
             obtain_resource(
                 resource_id="invalid-id",
@@ -143,7 +144,9 @@ class TestObtainResourcesCheck(unittest.TestCase):
             in str(context.exception)
         )
 
-    def test_obtain_resources_with_version_invalid_id(self):
+    def test_obtain_resources_with_version_invalid_id(
+        self, mock_create_client
+    ):
         with self.assertRaises(Exception) as context:
             obtain_resource(
                 resource_id="invalid-id",
@@ -156,7 +159,9 @@ class TestObtainResourcesCheck(unittest.TestCase):
             in str(context.exception)
         )
 
-    def test_obtain_resources_with_version_invalid_version(self):
+    def test_obtain_resources_with_version_invalid_version(
+        self, mock_create_client
+    ):
         with self.assertRaises(Exception) as context:
             obtain_resource(
                 resource_id="test-binary-resource",
@@ -164,8 +169,6 @@ class TestObtainResourcesCheck(unittest.TestCase):
                 resource_version="3.0.0",
             )
         self.assertTrue(
-            f"Resource test-binary-resource with version '3.0.0'"
-            " not found.\nResource versions can be found at: "
-            f"https://resources.gem5.org/resources/test-binary-resource/versions"
+            "Resource with ID 'test-binary-resource' not found."
             in str(context.exception)
         )

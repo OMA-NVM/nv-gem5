@@ -152,6 +152,7 @@ packet2payload(PacketPtr packet)
     trans->acquire();
 
     trans->set_address(packet->getAddr());
+    trans->set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);
 
     /* Check if this transaction was allocated by mm */
     sc_assert(trans->has_mm());
@@ -252,15 +253,13 @@ Gem5ToTlmBridge<BITWIDTH>::pec(
         if (need_retry) {
             blockingResponse = &trans;
         } else {
-            if (phase == tlm::BEGIN_RESP) {
-                // Send END_RESP and we're finished:
-                tlm::tlm_phase fw_phase = tlm::END_RESP;
-                sc_core::sc_time delay = sc_core::SC_ZERO_TIME;
-                socket->nb_transport_fw(trans, fw_phase, delay);
-                // Release the transaction with all the extensions.
-                packetMap.erase(&trans);
-                trans.release();
-            }
+            // Send END_RESP and we're finished:
+            tlm::tlm_phase fw_phase = tlm::END_RESP;
+            sc_core::sc_time delay = sc_core::SC_ZERO_TIME;
+            socket->nb_transport_fw(trans, fw_phase, delay);
+            // Release the transaction with all the extensions.
+            packetMap.erase(&trans);
+            trans.release();
         }
     }
 }
@@ -480,7 +479,8 @@ Gem5ToTlmBridge<BITWIDTH>::recvRespRetry()
 
     tlm::tlm_generic_payload *trans = blockingResponse;
     blockingResponse = nullptr;
-    PacketPtr packet = packetMap[blockingResponse];
+
+    PacketPtr packet = packetMap[trans];
     sc_assert(packet);
 
     bool need_retry = !bridgeResponsePort.sendTimingResp(packet);

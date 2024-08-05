@@ -1,4 +1,5 @@
 build
+gem5_build
 parser.out
 parsetab.py
 cscope.files
@@ -32,6 +33,8 @@ configs/example/memcheck.cfg
 configs/dram/lowp_sweep.cfg
 .pyenv
 .vscode
+typings
+.DS_Store
 .cache
 compile_commands.json
 gem5.terminal

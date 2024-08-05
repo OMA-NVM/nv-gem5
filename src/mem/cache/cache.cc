@@ -339,13 +339,25 @@ Cache::handleTimingReqMiss(PacketPtr pkt, CacheBlk *blk, Tick forward_time,
         if (pkt->isWrite()) {
             allocateWriteBuffer(pkt, forward_time);
         } else {
-            assert(pkt->isRead());
-
             // uncacheable accesses always allocate a new MSHR
 
             // Here we are using forward_time, modelling the latency of
             // a miss (outbound) just as forwardLatency, neglecting the
             // lookupLatency component.
+
+            // Here we allow allocating miss buffer for read requests
+            // and x86's clflush requests. A clflush request should be
+            // propagate through all levels of the cache system.
+
+            // Doing clflush in uncacheable regions might sound contradictory;
+            // however, it is entirely possible due to how the Linux kernel
+            // handle page property changes. When a linux kernel wants to
+            // change a page property, it flushes the related cache lines. The
+            // kernel might change the page property before flushing the cache
+            // lines. This results in the clflush might occur in an uncacheable
+            // region, where the kernel marks a region uncacheable before
+            // flushing. clflush results in a CleanInvalidReq.
+            assert(pkt->isRead() || pkt->isCleanInvalidateRequest());
             allocateMissBuffer(pkt, forward_time);
         }
 
@@ -849,7 +861,7 @@ Cache::serviceMSHRTargets(MSHR *mshr, const PacketPtr pkt, CacheBlk *blk)
                 }
                 // not a cache fill, just forwarding response
                 // responseLatency is the latency of the return path
-                // from lower level cahces/memory to the core.
+                // from lower level caches/memory to the core.
                 completion_time += clockEdge(responseLatency) +
                     pkt->payloadDelay;
                 if (!is_error) {

@@ -29,8 +29,8 @@
 #ifndef __MEM_CACHE_PREFETCH_DELTA_CORRELATING_PREDICTION_TABLES_HH_
 #define __MEM_CACHE_PREFETCH_DELTA_CORRELATING_PREDICTION_TABLES_HH_
 
+#include "base/cache/associative_cache.hh"
 #include "base/circular_queue.hh"
-#include "mem/cache/prefetch/associative_set.hh"
 #include "mem/cache/prefetch/queued.hh"
 
 namespace gem5
@@ -65,7 +65,7 @@ class DeltaCorrelatingPredictionTables : public SimObject
     const unsigned int deltaMaskBits;
 
     /** DCPT Table entry datatype */
-    struct DCPTEntry : public TaggedEntry
+    struct DCPTEntry : public CacheEntry
     {
         /** Last accessed address */
         Addr lastAddress;
@@ -77,7 +77,7 @@ class DeltaCorrelatingPredictionTables : public SimObject
          * @param num_deltas number of deltas stored in the entry
          */
         DCPTEntry(unsigned int num_deltas)
-          : TaggedEntry(), lastAddress(0), deltas(num_deltas)
+          : CacheEntry(), lastAddress(0), deltas(num_deltas)
         {
         }
 
@@ -103,7 +103,7 @@ class DeltaCorrelatingPredictionTables : public SimObject
 
     };
     /** The main table */
-    AssociativeSet<DCPTEntry> table;
+    AssociativeCache<DCPTEntry> table;
 
   public:
     DeltaCorrelatingPredictionTables(
@@ -114,9 +114,11 @@ class DeltaCorrelatingPredictionTables : public SimObject
      * Computes the prefetch candidates given a prefetch event.
      * @param pfi The prefetch event information
      * @param addresses prefetch candidates generated
+     * @param cache accessor for cache lookups
      */
     void calculatePrefetch(const Base::PrefetchInfo &pfi,
-        std::vector<Queued::AddrPriority> &addresses);
+        std::vector<Queued::AddrPriority> &addresses,
+        const CacheAccessor &cache);
 
 };
 
@@ -130,7 +132,8 @@ class DCPT : public Queued
     ~DCPT() = default;
 
     void calculatePrefetch(const PrefetchInfo &pfi,
-        std::vector<AddrPriority> &addresses) override;
+        std::vector<AddrPriority> &addresses,
+        const CacheAccessor &cache) override;
 };
 
 } // namespace prefetch

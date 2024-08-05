@@ -24,14 +24,21 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from .abstract_classic_cache_hierarchy import AbstractClassicCacheHierarchy
-from ..abstract_cache_hierarchy import AbstractCacheHierarchy
-from ...boards.abstract_board import AbstractBoard
+from typing import Optional
+
+from m5.objects import (
+    BadAddr,
+    BaseXBar,
+    Bridge,
+    Port,
+    SystemXBar,
+)
+
 from ....isas import ISA
-
-from m5.objects import Bridge, BaseXBar, SystemXBar, BadAddr, Port
-
 from ....utils.override import *
+from ...boards.abstract_board import AbstractBoard
+from ..abstract_cache_hierarchy import AbstractCacheHierarchy
+from .abstract_classic_cache_hierarchy import AbstractClassicCacheHierarchy
 
 
 class NoCache(AbstractClassicCacheHierarchy):
@@ -41,24 +48,25 @@ class NoCache(AbstractClassicCacheHierarchy):
     By default a SystemXBar of width 64bit is used, though this can be
     configured via the constructor.
 
-    NOTE: At present this does not work with FS. The following error is
-    received:
+    .. note::
 
-    ```
-    ...
-    build/X86/mem/snoop_filter.cc:277: panic: panic condition
-    (sf_item.requested & req_mask).none() occurred: SF value
-    0000000000000000000000000000000000000000000000000000000000000000 ...
-    missing the original request
-    Memory Usage: 3554472 KBytes
-    Program aborted at tick 1668400099164
-    --- BEGIN LIBC BACKTRACE ---
-    ...
-    ```
+        At present this does not work with FS. The following error is
+        received:
+
+        .. code-block::
+            ...
+            build/X86/mem/snoop_filter.cc:277: panic: panic condition
+            (sf_item.requested & req_mask).none() occurred: SF value
+            0000000000000000000000000000000000000000000000000000000000000000 ...
+            missing the original request
+            Memory Usage: 3554472 KBytes
+            Program aborted at tick 1668400099164
+            --- BEGIN LIBC BACKTRACE ---
+            ...
+
     """
 
-    @staticmethod
-    def _get_default_membus() -> SystemXBar:
+    def _get_default_membus(self) -> SystemXBar:
         """
         A method used to obtain the default memory bus of 64 bit in width for
         the NoCache CacheHierarchy.
@@ -75,17 +83,16 @@ class NoCache(AbstractClassicCacheHierarchy):
         membus.max_routing_table_size = 2048
         return membus
 
-    def __init__(
-        self, membus: BaseXBar = _get_default_membus.__func__()
-    ) -> None:
+    def __init__(self, membus: Optional[BaseXBar] = None) -> None:
         """
         :param membus: The memory bus for this setup. This parameter is
-        optional and will default toa 64 bit width SystemXBar is not specified.
+                       optional and will default toa 64 bit width SystemXBar
+                       if not specified.
 
         :type membus: BaseXBar
         """
         super().__init__()
-        self.membus = membus
+        self.membus = membus if membus else self._get_default_membus()
 
     @overrides(AbstractClassicCacheHierarchy)
     def get_mem_side_port(self) -> Port:
@@ -97,12 +104,10 @@ class NoCache(AbstractClassicCacheHierarchy):
 
     @overrides(AbstractCacheHierarchy)
     def incorporate_cache(self, board: AbstractBoard) -> None:
-
         if board.has_coherent_io():
             self._setup_coherent_io_bridge(board)
 
         for core in board.get_processor().get_cores():
-
             core.connect_icache(self.membus.cpu_side_ports)
             core.connect_dcache(self.membus.cpu_side_ports)
             core.connect_walker_ports(

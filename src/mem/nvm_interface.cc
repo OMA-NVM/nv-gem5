@@ -564,7 +564,7 @@ NVMInterface::doBurstAccess(
     // Update the stats
     if (pkt->isRead()) {
         stats.readBursts++;
-        stats.bytesRead += burstSize;
+        stats.nvmBytesRead += burstSize;
         stats.perBankRdBursts[pkt->bankId]++;
         stats.pendingReads.sample(numPendingReads);
 
@@ -574,7 +574,7 @@ NVMInterface::doBurstAccess(
         stats.totQLat += cmd_at - pkt->entryTime;
     } else {
         stats.writeBursts++;
-        stats.bytesWritten += burstSize;
+        stats.nvmBytesWritten += burstSize;
         stats.perBankWrBursts[pkt->bankId]++;
     }
 
@@ -691,30 +691,26 @@ NVMInterface::NVMStats::NVMStats(NVMInterface &_nvm)
               statistics::units::Tick, statistics::units::Count>::get(),
           "Average memory access latency per NVM burst"),
 
-      ADD_STAT(
-          avgRdBW,
-          statistics::units::Rate<
-              statistics::units::Byte, statistics::units::Second>::get(),
-          "Average DRAM read bandwidth in MiBytes/s"),
-      ADD_STAT(
-          avgWrBW,
-          statistics::units::Rate<
-              statistics::units::Byte, statistics::units::Second>::get(),
-          "Average DRAM write bandwidth in MiBytes/s"),
-      ADD_STAT(
-          peakBW,
-          statistics::units::Rate<
-              statistics::units::Byte, statistics::units::Second>::get(),
-          "Theoretical peak bandwidth in MiByte/s"),
-      ADD_STAT(
-          busUtil, statistics::units::Ratio::get(),
-          "NVM Data bus utilization in percentage"),
-      ADD_STAT(
-          busUtilRead, statistics::units::Ratio::get(),
-          "NVM Data bus read utilization in percentage"),
-      ADD_STAT(
-          busUtilWrite, statistics::units::Ratio::get(),
-          "NVM Data bus write utilization in percentage"),
+    ADD_STAT(nvmBytesRead, statistics::units::Byte::get(),
+            "Total bytes read"),
+    ADD_STAT(nvmBytesWritten, statistics::units::Byte::get(),
+            "Total bytes written"),
+
+    ADD_STAT(avgRdBW, statistics::units::Rate<
+                statistics::units::Byte, statistics::units::Second>::get(),
+             "Average DRAM read bandwidth in MiBytes/s"),
+    ADD_STAT(avgWrBW, statistics::units::Rate<
+                statistics::units::Byte, statistics::units::Second>::get(),
+             "Average DRAM write bandwidth in MiBytes/s"),
+    ADD_STAT(peakBW, statistics::units::Rate<
+                statistics::units::Byte, statistics::units::Second>::get(),
+             "Theoretical peak bandwidth in MiByte/s"),
+    ADD_STAT(busUtil, statistics::units::Ratio::get(),
+             "NVM Data bus utilization in percentage"),
+    ADD_STAT(busUtilRead, statistics::units::Ratio::get(),
+             "NVM Data bus read utilization in percentage"),
+    ADD_STAT(busUtilWrite, statistics::units::Ratio::get(),
+             "NVM Data bus write utilization in percentage"),
 
       ADD_STAT(
           pendingReads, statistics::units::Count::get(),
@@ -762,9 +758,10 @@ NVMInterface::NVMStats::regStats()
     avgBusLat = totBusLat / readBursts;
     avgMemAccLat = totMemAccLat / readBursts;
 
-    avgRdBW = (bytesRead / 1000000) / simSeconds;
-    avgWrBW = (bytesWritten / 1000000) / simSeconds;
-    peakBW = (sim_clock::Frequency / nvm.tBURST) * nvm.burstSize / 1000000;
+    avgRdBW = (nvmBytesRead / 1000000) / simSeconds;
+    avgWrBW = (nvmBytesWritten / 1000000) / simSeconds;
+    peakBW = (sim_clock::Frequency / nvm.tBURST) *
+              nvm.burstSize / 1000000;
 
     busUtil = (avgRdBW + avgWrBW) / peakBW * 100;
     busUtilRead = avgRdBW / peakBW * 100;

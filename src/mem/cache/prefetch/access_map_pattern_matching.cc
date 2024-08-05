@@ -51,9 +51,11 @@ AccessMapPatternMatching::AccessMapPatternMatching(
       lowCacheHitThreshold(p.low_cache_hit_threshold),
       epochCycles(p.epoch_cycles),
       offChipMemoryLatency(p.offchip_memory_latency),
-      accessMapTable(p.access_map_table_assoc, p.access_map_table_entries,
-                     p.access_map_table_indexing_policy,
+      accessMapTable("AccessMapTable",
+                     p.access_map_table_entries,
+                     p.access_map_table_assoc,
                      p.access_map_table_replacement_policy,
+                     p.access_map_table_indexing_policy,
                      AccessMapEntry(hotZoneSize / blkSize)),
       numGoodPrefetches(0), numTotalPrefetches(0), numRawCacheMisses(0),
       numRawCacheHits(0), degree(startDegree), usefulDegree(startDegree),
@@ -156,7 +158,8 @@ AccessMapPatternMatching::setEntryState(AccessMapEntry &entry,
 
 void
 AccessMapPatternMatching::calculatePrefetch(const Base::PrefetchInfo &pfi,
-    std::vector<Queued::AddrPriority> &addresses)
+    std::vector<Queued::AddrPriority> &addresses,
+    const CacheAccessor &cache)
 {
     assert(addresses.empty());
 
@@ -262,9 +265,10 @@ AMPM::AMPM(const AMPMPrefetcherParams &p)
 
 void
 AMPM::calculatePrefetch(const PrefetchInfo &pfi,
-    std::vector<AddrPriority> &addresses)
+    std::vector<AddrPriority> &addresses,
+    const CacheAccessor &cache)
 {
-    ampm.calculatePrefetch(pfi, addresses);
+    ampm.calculatePrefetch(pfi, addresses, cache);
 }
 
 } // namespace prefetch

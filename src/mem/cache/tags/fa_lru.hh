@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2023-2024 ARM Limited
  * Copyright (c) 2012-2013,2016,2018 ARM Limited
  * All rights reserved.
  *
@@ -85,6 +86,7 @@ class FALRUBlk : public CacheBlk
 {
   public:
     FALRUBlk() : CacheBlk(), prev(nullptr), next(nullptr), inCachesMask(0) {}
+    using CacheBlk::operator=;
 
     /** The previous block in LRU order. */
     FALRUBlk *prev;
@@ -215,11 +217,13 @@ class FALRU : public BaseTags
      * @param is_secure True if the target memory space is secure.
      * @param size Size, in bits, of new block to allocate.
      * @param evict_blks Cache blocks to be evicted.
+     * @param partition_id Partition ID for resource management.
      * @return Cache block to be replaced.
      */
     CacheBlk* findVictim(Addr addr, const bool is_secure,
                          const std::size_t size,
-                         std::vector<CacheBlk*>& evict_blks) override;
+                         std::vector<CacheBlk*>& evict_blks,
+                         const uint64_t partition_id=0) override;
 
     /**
      * Insert the new block into the cache and update replacement data.
@@ -251,12 +255,6 @@ class FALRU : public BaseTags
     Addr regenerateBlkAddr(const CacheBlk* blk) const override
     {
         return blk->getTag();
-    }
-
-    void forEachBlk(std::function<void(CacheBlk &)> visitor) override {
-        for (int i = 0; i < numBlocks; i++) {
-            visitor(blks[i]);
-        }
     }
 
     bool anyBlk(std::function<bool(CacheBlk &)> visitor) override {

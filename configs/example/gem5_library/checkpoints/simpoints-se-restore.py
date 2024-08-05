@@ -52,29 +52,35 @@ scons build/X86/gem5.opt
 
 """
 
+from pathlib import Path
+
+from m5.stats import (
+    dump,
+    reset,
+)
+
+from gem5.components.boards.simple_board import SimpleBoard
+from gem5.components.cachehierarchies.classic.private_l1_private_l2_walk_cache_hierarchy import (
+    PrivateL1PrivateL2WalkCacheHierarchy,
+)
+from gem5.components.memory import DualChannelDDR4_2400
+from gem5.components.processors.cpu_types import CPUTypes
+from gem5.components.processors.simple_processor import SimpleProcessor
+from gem5.isas import ISA
+from gem5.resources.resource import (
+    SimpointResource,
+    obtain_resource,
+)
+from gem5.resources.workload import Workload
 from gem5.simulate.exit_event import ExitEvent
 from gem5.simulate.simulator import Simulator
 from gem5.utils.requires import requires
-from gem5.components.cachehierarchies.classic.private_l1_private_l2_cache_hierarchy import (
-    PrivateL1PrivateL2CacheHierarchy,
-)
-from gem5.components.boards.simple_board import SimpleBoard
-from gem5.components.memory import DualChannelDDR4_2400
-from gem5.components.processors.simple_processor import SimpleProcessor
-from gem5.components.processors.cpu_types import CPUTypes
-from gem5.isas import ISA
-from gem5.resources.resource import SimpointResource, obtain_resource
-from gem5.resources.workload import Workload
-from gem5.resources.resource import SimpointResource
-
-from pathlib import Path
-from m5.stats import reset, dump
 
 requires(isa_required=ISA.X86)
 
 # The cache hierarchy can be different from the cache hierarchy used in taking
 # the checkpoints
-cache_hierarchy = PrivateL1PrivateL2CacheHierarchy(
+cache_hierarchy = PrivateL1PrivateL2WalkCacheHierarchy(
     l1d_size="32kB",
     l1i_size="32kB",
     l2_size="256kB",
@@ -119,7 +125,9 @@ board.set_se_simpoint_workload(
         weight_list=[0.1, 0.2, 0.4, 0.3],
         warmup_interval=1000000,
     ),
-    checkpoint=obtain_resource("simpoints-se-checkpoints-v23-0-v1"),
+    checkpoint=obtain_resource(
+        "simpoints-se-checkpoints", resource_version="3.0.0"
+    ),
 )
 
 

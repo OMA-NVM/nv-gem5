@@ -25,23 +25,22 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from datetime import datetime
-from typing import Dict, List, Optional, Union
+from typing import (
+    Dict,
+    List,
+    Optional,
+    Union,
+)
 
-from .abstract_stat import AbstractStat
 from .group import Group
 from .statistic import Statistic
 from .timeconversion import TimeConversion
 
 
-class SimStat(AbstractStat):
+class SimStat(Group):
     """
     Contains all the statistics for a given simulation.
     """
-
-    creation_time: Optional[datetime]
-    time_conversion: Optional[TimeConversion]
-    simulated_begin_time: Optional[Union[int, float]]
-    simulated_end_time: Optional[Union[int, float]]
 
     def __init__(
         self,
@@ -51,10 +50,10 @@ class SimStat(AbstractStat):
         simulated_end_time: Optional[Union[int, float]] = None,
         **kwargs: Dict[str, Union[Group, Statistic, List[Group]]]
     ):
-        self.creation_time = creation_time
-        self.time_conversion = time_conversion
-        self.simulated_begin_time = simulated_begin_time
-        self.simulated_end_time = simulated_end_time
-
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+        super().__init__(
+            creation_time=creation_time,
+            time_conversion=time_conversion,
+            simulated_begin_time=simulated_begin_time,
+            simulated_end_time=simulated_end_time,
+            **kwargs
+        )

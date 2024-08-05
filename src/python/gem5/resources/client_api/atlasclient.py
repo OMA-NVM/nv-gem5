@@ -24,17 +24,61 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from urllib import request, parse
-from urllib.error import HTTPError, URLError
-from typing import Optional, Dict, Union, Type, Tuple, List, Any
+import itertools
 import json
+import time
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+)
+from urllib import (
+    parse,
+    request,
+)
+
+from m5.util import warn
+
+from ...utils.socks_ssl_context import get_proxy_context
 from .abstract_client import AbstractClient
+from .client_query import ClientQuery
+
+
+class AtlasClientHttpJsonRequestError(Exception):
+    def __init__(
+        self,
+        client: "AtlasClient",
+        data: Dict[str, Any],
+        purpose_of_request: Optional[str],
+    ):
+        """An exception raised when an HTTP request to Atlas MongoDB fails.
+        :param client: The AtlasClient instance that raised the exception.
+        :param purpose_of_request: A string describing the purpose of the
+        request.
+        """
+        error_str = (
+            f"Http Request to Atlas MongoDB failed.\n"
+            f"Atlas URL: {client.url}\n"
+            f"Auth URL: {client.authUrl}\n"
+            f"Database: {client.database}\n"
+            f"Collection: {client.collection}\n\n"
+            f"Data sent:\n\n{json.dumps(data,indent=4)}\n\n"
+        )
+
+        if purpose_of_request:
+            error_str += f"Purpose of Request: {purpose_of_request}\n\n"
+        super().__init__(error_str)
 
 
 class AtlasClient(AbstractClient):
     def __init__(self, config: Dict[str, str]):
         """
         Initializes a connection to a MongoDB Atlas database.
+
         :param uri: The URI for connecting to the MongoDB server.
         :param db: The name of the database to connect to.
         :param collection: The name of the collection within the database.
@@ -47,61 +91,127 @@ class AtlasClient(AbstractClient):
         self.authUrl = config["authUrl"]
 
     def get_token(self):
-        data = {"key": self.apiKey}
-        data = json.dumps(data).encode("utf-8")
+        return self._atlas_http_json_req(
+            self.authUrl,
+            data_json={"key": self.apiKey},
+            headers={"Content-Type": "application/json"},
+            purpose_of_request="Get Access Token with API key",
+        )["access_token"]
+
+    def _atlas_http_json_req(
+        self,
+        url: str,
+        data_json: Dict[str, Any],
+        headers: Dict[str, str],
+        purpose_of_request: Optional[str],
+        max_failed_attempts: int = 4,
+        reattempt_pause_base: int = 2,
+    ) -> Dict[str, Any]:
+        """Sends a JSON object over HTTP to a given Atlas MongoDB server and
+        returns the response. This function will attempt to reconnect to the
+        server if the connection fails a set number of times before raising an
+        exception.
+
+        :param url: The URL to open the connection.
+        :param data_json: The JSON object to send.
+        :param headers: The headers to send with the request.
+        :param purpose_of_request: A string describing the purpose of the
+        request. This is optional. It's used to give context to the user if an
+        exception is raised.
+        :param max_failed_attempts: The maximum number of times to an attempt
+        at making a request should be done before throwing an exception.
+        :param reattempt_pause_base: The base of the exponential backoff -- the
+        time between each attempt.
+
+        **Warning**: This function assumes a JSON response.
+        """
+        data = json.dumps(data_json).encode("utf-8")
 
         req = request.Request(
-            self.authUrl,
+            url,
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
         )
-        try:
-            response = request.urlopen(req)
-        except HTTPError as e:
-            self.verify_status_code(e.status)
-            return None
-        result = json.loads(response.read().decode("utf-8"))
-        token = result["access_token"]
-        return token
+
+        for attempt in itertools.count(start=1):
+            try:
+                response = request.urlopen(req, context=get_proxy_context())
+                break
+            except Exception as e:
+                if attempt >= max_failed_attempts:
+                    raise AtlasClientHttpJsonRequestError(
+                        client=self,
+                        data=data_json,
+                        purpose_of_request=purpose_of_request,
+                    )
+                pause = reattempt_pause_base**attempt
+                warn(
+                    f"Attempt {attempt} of Atlas HTTP Request failed.\n"
+                    f"Purpose of Request: {purpose_of_request}.\n\n"
+                    f"Failed with Exception:\n{e}\n\n"
+                    f"Retrying after {pause} seconds..."
+                )
+                time.sleep(pause)
+
+        return json.loads(response.read().decode("utf-8"))
 
     def get_resources(
         self,
-        resource_id: Optional[str] = None,
-        resource_version: Optional[str] = None,
-        gem5_version: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        client_queries: List[ClientQuery],
+    ) -> Dict[str, Any]:
         url = f"{self.url}/action/find"
         data = {
             "dataSource": self.dataSource,
             "collection": self.collection,
             "database": self.database,
         }
-        filter = {}
-        if resource_id:
-            filter["id"] = resource_id
-            if resource_version is not None:
-                filter["resource_version"] = resource_version
 
-        if filter:
-            data["filter"] = filter
-        data = json.dumps(data).encode("utf-8")
+        search_conditions = []
+        for resource in client_queries:
+            condition = {
+                "id": resource.get_resource_id(),
+            }
+
+            if not resource.get_gem5_version().startswith("DEVELOP"):
+                # This is a regex search that matches the beginning of the
+                # string. So if the resource version is '20.1', it will
+                # match '20.1.1'.
+                condition["gem5_versions"] = {
+                    "$regex": f"^{resource.get_gem5_version()}",
+                    "$options": "i",
+                }
+
+            # If the resource has a resource_version, add it to the search
+            # conditions.
+            if resource.get_resource_version():
+                condition["resource_version"] = resource.get_resource_version()
+
+            search_conditions.append(condition)
+
+        filter = {"$or": search_conditions}
+        data["filter"] = filter
 
         headers = {
             "Authorization": f"Bearer {self.get_token()}",
             "Content-Type": "application/json",
         }
 
-        req = request.Request(url, data=data, headers=headers)
-        try:
-            response = request.urlopen(req)
-        except HTTPError as e:
-            self.verify_status_code(e.status)
-            return None
-        result = json.loads(response.read().decode("utf-8"))
-        resources = result["documents"]
+        resources = self._atlas_http_json_req(
+            url,
+            data_json=data,
+            headers=headers,
+            purpose_of_request="Get Resources",
+        )["documents"]
 
-        # I do this as a lazy post-processing step because I can't figure out
-        # how to do this via an Atlas query, which may be more efficient.
-        return self.filter_incompatible_resources(
-            resources_to_filter=resources, gem5_version=gem5_version
-        )
+        resources_by_id = {}
+        for resource in resources:
+            if resource["id"] in resources_by_id.keys():
+                resources_by_id[resource["id"]].append(resource)
+            else:
+                resources_by_id[resource["id"]] = [resource]
+
+        # Sort the resources by version and return the latest version.
+        for id, resource_list in resources_by_id.items():
+            resources_by_id[id] = self.sort_resources(resource_list)[0]
+
+        return resources_by_id

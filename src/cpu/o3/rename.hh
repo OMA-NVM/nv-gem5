@@ -170,7 +170,7 @@ class Rename
     void setActiveThreads(std::list<ThreadID> *at_ptr);
 
     /** Sets pointer to rename maps (per-thread structures). */
-    void setRenameMap(UnifiedRenameMap rm_ptr[MaxThreads]);
+    void setRenameMap(UnifiedRenameMap::PerThreadUnifiedRenameMap& rm_ptr);
 
     /** Sets pointer to the free list. */
     void setFreeList(UnifiedFreeList *fl_ptr);
@@ -358,6 +358,9 @@ class Rename
 
     /** Free list interface. */
     UnifiedFreeList *freeList;
+
+    /** Hold phys regs to be released after squash finish */
+    std::vector<PhysRegIdPtr> freeingInProgress[MaxThreads];
 
     /** Pointer to the list of active threads. */
     std::list<ThreadID> *activeThreads;

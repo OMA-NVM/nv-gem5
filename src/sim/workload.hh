@@ -103,6 +103,8 @@ class Workload : public SimObject
     virtual Addr getEntry() const = 0;
     virtual ByteOrder byteOrder() const = 0;
     virtual loader::Arch getArch() const = 0;
+    /// Returns the semihosting interface if supported by the current workload.
+    virtual SimObject* getSemihosting() const { return nullptr; }
 
     virtual const loader::SymbolTable &symtab(ThreadContext *tc) = 0;
     virtual bool insertSymbol(const loader::Symbol &symbol) = 0;
@@ -141,7 +143,7 @@ class Workload : public SimObject
         if (it == symtab.end())
             return nullptr;
 
-        return new T(system, desc, fixFuncEventAddr(it->address),
+        return new T(system, desc, fixFuncEventAddr(it->address()),
                       std::forward<Args>(args)...);
     }
 

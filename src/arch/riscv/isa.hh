@@ -67,12 +67,14 @@ enum FPUStatus
     DIRTY = 3,
 };
 
+using VPUStatus = FPUStatus;
+
 class ISA : public BaseISA
 {
   protected:
-    RiscvType rv_type;
+    RiscvType _rvType;
     std::vector<RegVal> miscRegFile;
-    bool checkAlignment;
+    bool enableRvv;
 
     bool hpmCounterEnabled(int counter) const;
 
@@ -80,6 +82,21 @@ class ISA : public BaseISA
     const int WARN_FAILURE = 10000;
     const Addr INVALID_RESERVATION_ADDR = (Addr)-1;
     std::unordered_map<int, Addr> load_reservation_addrs;
+
+    /** Length of each vector register in bits.
+     *  VLEN in Ch. 2 of RISC-V vector spec
+     */
+    unsigned vlen;
+
+    /** Length of each vector element in bits.
+     *  ELEN in Ch. 2 of RISC-V vector spec
+    */
+    unsigned elen;
+
+    /** The combination of privilege modes
+     *  in Privilege Levels section of RISC-V privileged spec
+     */
+    PrivilegeModeSet _privilegeModeSet;
 
   public:
     using Params = RiscvISAParams;
@@ -89,14 +106,8 @@ class ISA : public BaseISA
     PCStateBase*
     newPCState(Addr new_inst_addr=0) const override
     {
-        return new PCState(new_inst_addr, rv_type);
-    }
-
-    void
-    clearLoadReservation(ContextID cid) override
-    {
-        Addr& load_reservation_addr = load_reservation_addrs[cid];
-        load_reservation_addr = INVALID_RESERVATION_ADDR;
+        unsigned vlenb = vlen >> 3;
+        return new PCState(new_inst_addr, _rvType, vlenb);
     }
 
   public:
@@ -117,10 +128,8 @@ class ISA : public BaseISA
     virtual const std::unordered_map<int, RegVal>&
     getCSRMaskMap() const
     {
-        return CSRMasks[rv_type];
+        return CSRMasks[_rvType][_privilegeModeSet];
     }
-
-    bool alignmentCheckEnabled() const { return checkAlignment; }
 
     bool inUserMode() const override;
     void copyRegsFrom(ThreadContext *src) override;
@@ -141,7 +150,28 @@ class ISA : public BaseISA
 
     void resetThread() override;
 
-    RiscvType rvType() const { return rv_type; }
+    RiscvType rvType() const { return _rvType; }
+
+    bool getEnableRvv() const { return enableRvv; }
+
+    void
+    clearLoadReservation(ContextID cid)
+    {
+        Addr& load_reservation_addr = load_reservation_addrs[cid];
+        load_reservation_addr = INVALID_RESERVATION_ADDR;
+    }
+
+    /** Methods for getting VLEN, VLENB and ELEN values */
+    unsigned getVecLenInBits() { return vlen; }
+    unsigned getVecLenInBytes() { return vlen >> 3; }
+    unsigned getVecElemLenInBits() { return elen; }
+
+    int64_t getVectorLengthInBytes() const override { return vlen >> 3; }
+
+    PrivilegeModeSet getPrivilegeModeSet() { return _privilegeModeSet; }
+
+    virtual Addr getFaultHandlerAddr(
+        RegIndex idx, uint64_t cause, bool intr) const;
 };
 
 } // namespace RiscvISA

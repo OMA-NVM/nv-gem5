@@ -43,12 +43,11 @@
 Tests which run simple binaries in gem5's SE mode. The stdlib's SimpleBoard
 is used to run these tests.
 """
-from testlib import *
-
 import re
 
+from testlib import *
+
 isa_str_map = {
-    constants.gcn3_x86_tag: "x86",
     constants.arm_tag: "arm",
     constants.mips_tag: "mips",
     constants.riscv_tag: "riscv",
@@ -90,13 +89,18 @@ stdout_verifier = verifier.MatchRegex(regex)
 
 
 def verify_config(isa, binary, cpu, hosts, verifier, input):
-
     gem5_verify_config(
         name="test-" + binary + "-" + cpu,
         fixtures=(),
         verifiers=(verifier,),
         config=joinpath(
-            config.base_dir, "tests", "gem5", "configs", "simple_binary_run.py"
+            config.base_dir,
+            "tests",
+            "gem5",
+            "se_mode",
+            "hello_se",
+            "configs",
+            "simple_binary_run.py",
         ),
         config_args=[
             binary,

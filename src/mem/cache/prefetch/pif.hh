@@ -138,11 +138,12 @@ class PIF : public Queued
         {
             HistoryBuffer::iterator historyIt;
         };
+
         /**
          * The index table is a small cache-like structure that facilitates
          * fast search of the history buffer.
          */
-        AssociativeSet<IndexEntry> index;
+        AssociativeCache<IndexEntry> index;
 
         /**
          * A Stream Address Buffer (SAB) tracks a window of consecutive
@@ -182,7 +183,8 @@ class PIF : public Queued
         ~PIF() = default;
 
         void calculatePrefetch(const PrefetchInfo &pfi,
-                               std::vector<AddrPriority> &addresses);
+                               std::vector<AddrPriority> &addresses,
+                               const CacheAccessor &cache);
 
         /**
          * Add a SimObject and a probe name to monitor the retired instructions

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2012-2013, 2016-2020, 2022 Arm Limited
+ * Copyright (c) 2010, 2012-2013, 2016-2020, 2022-2024 Arm Limited
  * All rights reserved
  *
  * The license below extends only to copyright in the software and shall
@@ -217,6 +217,8 @@ int computeAddrTop(ThreadContext *tc, bool selbit, bool isInstr,
 
 bool isSecureBelowEL3(ThreadContext *tc);
 
+bool isSecureAtEL(ThreadContext *tc, ExceptionLevel el);
+
 bool longDescFormatInUse(ThreadContext *tc);
 
 /** This helper function is either returing the value of
@@ -363,6 +365,18 @@ bool isUnpriviledgeAccess(ThreadContext *tc);
 
 void syncVecRegsToElems(ThreadContext *tc);
 void syncVecElemsToRegs(ThreadContext *tc);
+
+bool fgtEnabled(ThreadContext *tc);
+bool isHcrxEL2Enabled(ThreadContext *tc);
+
+TranslationRegime translationRegime(ThreadContext *tc, ExceptionLevel el);
+ExceptionLevel translationEl(TranslationRegime regime);
+
+static inline bool
+useVMID(TranslationRegime regime)
+{
+    return regime == TranslationRegime::EL10;
+}
 
 } // namespace ArmISA
 } // namespace gem5

@@ -36,8 +36,8 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from m5.SimObject import SimObject
 from m5.params import *
+from m5.SimObject import SimObject
 
 
 class OpClass(Enum):
@@ -100,25 +100,22 @@ class OpClass(Enum):
         "FloatMemWrite",
         "IprAccess",
         "InstPrefetch",
-        "VectorUnitStrideLoad",
-        "VectorUnitStrideStore",
-        "VectorUnitStrideMaskLoad",
-        "VectorUnitStrideMaskStore",
-        "VectorStridedLoad",
-        "VectorStridedStore",
-        "VectorIndexedLoad",
-        "VectorIndexedStore",
-        "VectorUnitStrideFaultOnlyFirstLoad",
-        "VectorWholeRegisterLoad",
-        "VectorWholeRegisterStore",
-        "VectorIntegerArith",
-        "VectorFloatArith",
-        "VectorFloatConvert",
-        "VectorIntegerReduce",
-        "VectorFloatReduce",
-        "VectorMisc",
-        "VectorIntegerExtension",
-        "VectorConfig",
+        "SimdUnitStrideLoad",
+        "SimdUnitStrideStore",
+        "SimdUnitStrideMaskLoad",
+        "SimdUnitStrideMaskStore",
+        "SimdStridedLoad",
+        "SimdStridedStore",
+        "SimdIndexedLoad",
+        "SimdIndexedStore",
+        "SimdWholeRegisterLoad",
+        "SimdWholeRegisterStore",
+        "SimdUnitStrideFaultOnlyFirstLoad",
+        "SimdUnitStrideSegmentedLoad",
+        "SimdUnitStrideSegmentedStore",
+        "SimdExt",
+        "SimdFloatExt",
+        "SimdConfig",
     ]
 
 

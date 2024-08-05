@@ -28,19 +28,19 @@
 
 """
 
-from gem5.resources.resource import Resource
-from gem5.isas import ISA
-from gem5.components.memory import SingleChannelDDR3_1600
-from gem5.components.boards.simple_board import SimpleBoard
-from gem5.components.cachehierarchies.classic.no_cache import NoCache
-from gem5.components.processors.simple_processor import SimpleProcessor
-from gem5.components.processors.cpu_types import CPUTypes
-from gem5.simulate.simulator import Simulator
-from gem5.simulate.exit_event import ExitEvent
+import argparse
 
 import m5
 
-import argparse
+from gem5.components.boards.simple_board import SimpleBoard
+from gem5.components.cachehierarchies.classic.no_cache import NoCache
+from gem5.components.memory import SingleChannelDDR3_1600
+from gem5.components.processors.cpu_types import CPUTypes
+from gem5.components.processors.simple_processor import SimpleProcessor
+from gem5.isas import ISA
+from gem5.resources.resource import obtain_resource
+from gem5.simulate.exit_event import ExitEvent
+from gem5.simulate.simulator import Simulator
 
 parser = argparse.ArgumentParser()
 
@@ -76,8 +76,10 @@ motherboard = SimpleBoard(
 )
 
 # Set the workload
-binary = Resource(
-    "x86-hello64-static", resource_directory=args.resource_directory
+binary = obtain_resource(
+    "x86-hello64-static",
+    resource_directory=args.resource_directory,
+    resource_version="1.0.0",
 )
 motherboard.set_se_binary_workload(binary)
 

@@ -27,17 +27,17 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+from common import (
+    GPUTLBConfig,
+    Simulation,
+)
+from common.Benchmarks import *
+from common.FSConfig import *
+from example.gpufs.Disjoint_VIPER import *
+from ruby import Ruby
 from system.amdgpu import *
 
 from m5.util import panic
-
-from common.Benchmarks import *
-from common.FSConfig import *
-from common import GPUTLBConfig
-from common import Simulation
-from ruby import Ruby
-
-from example.gpufs.Disjoint_VIPER import *
 
 
 def makeGpuFSSystem(args):
@@ -50,7 +50,7 @@ def makeGpuFSSystem(args):
         "earlyprintk=ttyS0",
         "console=ttyS0,9600",
         "lpj=7999923",
-        "root=/dev/sda1",
+        f"root={args.root_partition}",
         "drm_kms_helper.fbdev_emulation=0",
         "modprobe.blacklist=amdgpu",
         "modprobe.blacklist=psmouse",
@@ -108,18 +108,26 @@ def makeGpuFSSystem(args):
     system.cpu.append(shader)
 
     # This arbitrary address is something in the X86 I/O hole
-    hsapp_gpu_map_paddr = 0xE00000000
+    hsapp_gpu_map_paddr = 0xE0000000
     hsapp_pt_walker = VegaPagetableWalker()
     gpu_hsapp = HSAPacketProcessor(
         pioAddr=hsapp_gpu_map_paddr,
         numHWQueues=args.num_hw_queues,
         walker=hsapp_pt_walker,
     )
-    dispatcher_exit_events = True if args.exit_at_gpu_kernel > -1 else False
+    dispatcher_exit_events = False
+    if args.exit_at_gpu_task > -1:
+        dispatcher_exit_events = True
+    if args.exit_after_gpu_kernel > -1:
+        dispatcher_exit_events = True
     dispatcher = GPUDispatcher(kernel_exit_events=dispatcher_exit_events)
     cp_pt_walker = VegaPagetableWalker()
+    target_kernel = args.skip_until_gpu_kernel
     gpu_cmd_proc = GPUCommandProcessor(
-        hsapp=gpu_hsapp, dispatcher=dispatcher, walker=cp_pt_walker
+        hsapp=gpu_hsapp,
+        dispatcher=dispatcher,
+        walker=cp_pt_walker,
+        target_non_blit_kernel_id=target_kernel,
     )
     shader.dispatcher = dispatcher
     shader.gpu_cmd_proc = gpu_cmd_proc
@@ -153,7 +161,7 @@ def makeGpuFSSystem(args):
             0x7D000,
         ]
         sdma_sizes = [0x1000] * 8
-    elif args.gpu_device == "MI200":
+    elif args.gpu_device == "MI200" or args.gpu_device == "MI300X":
         num_sdmas = 5
         sdma_bases = [
             0x4980,
@@ -180,9 +188,15 @@ def makeGpuFSSystem(args):
 
     system.pc.south_bridge.gpu.sdmas = sdma_engines
 
-    # Setup PM4 packet processor
-    pm4_pkt_proc = PM4PacketProcessor()
-    system.pc.south_bridge.gpu.pm4_pkt_proc = pm4_pkt_proc
+    # Setup PM4 packet processors
+    pm4_procs = []
+    pm4_procs.append(
+        PM4PacketProcessor(
+            ip_id=0, mmio_range=AddrRange(start=0xC000, end=0xD000)
+        )
+    )
+
+    system.pc.south_bridge.gpu.pm4_pkt_procs = pm4_procs
 
     # GPU data path
     gpu_mem_mgr = AMDGPUMemoryManager()
@@ -199,7 +213,8 @@ def makeGpuFSSystem(args):
     for sdma in sdma_engines:
         system._dma_ports.append(sdma)
     system._dma_ports.append(device_ih)
-    system._dma_ports.append(pm4_pkt_proc)
+    for pm4_proc in pm4_procs:
+        system._dma_ports.append(pm4_proc)
     system._dma_ports.append(system_hub)
     system._dma_ports.append(gpu_mem_mgr)
     system._dma_ports.append(hsapp_pt_walker)
@@ -213,7 +228,8 @@ def makeGpuFSSystem(args):
     for sdma in sdma_engines:
         sdma.pio = system.iobus.mem_side_ports
     device_ih.pio = system.iobus.mem_side_ports
-    pm4_pkt_proc.pio = system.iobus.mem_side_ports
+    for pm4_proc in pm4_procs:
+        pm4_proc.pio = system.iobus.mem_side_ports
     system_hub.pio = system.iobus.mem_side_ports
 
     # Full system needs special TLBs for SQC, Scalar, and vector data ports
@@ -231,7 +247,43 @@ def makeGpuFSSystem(args):
         clock=args.ruby_clock, voltage_domain=system.voltage_domain
     )
 
-    for (i, cpu) in enumerate(system.cpu):
+    # If we are using KVM cpu, enable AVX. AVX is used in some ROCm libraries
+    # such as rocBLAS which is used in higher level libraries like PyTorch.
+    use_avx = False
+    if ObjectList.is_kvm_cpu(TestCPUClass) and not args.disable_avx:
+        # AVX also requires CR4.osxsave to be 1. These must be set together
+        # of KVM will error out.
+        system.workload.enable_osxsave = 1
+        use_avx = True
+
+    # These values are taken from a real CPU and are further explained here:
+    # https://sandpile.org/x86/cpuid.htm#level_0000_000Dh
+    avx_extended_state = [
+        0x00000007,
+        0x00000340,
+        0x00000000,
+        0x00000340,
+        0x00000000,
+        0x00000340,
+        0x00000000,
+        0x00000000,
+        0x00000100,
+        0x00000240,
+        0x00000000,
+        0x00000040,
+        0x00000000,
+        0x00000000,
+        0x00000000,
+        0x00000000,
+    ]
+
+    # This modifies the default value for ECX only (4th in this array).
+    # See: https://sandpile.org/x86/cpuid.htm#level_0000_0001h
+    # Enables AVX, OSXSAVE, XSAVE, POPCNT, SSE4.2, SSE4.1, CMPXCHG16B,
+    # and FMA.
+    avx_cpu_features = [0x00020F51, 0x00000805, 0xEFDBFBFF, 0x1C803209]
+
+    for i, cpu in enumerate(system.cpu):
         # Break once we reach the shader "CPU"
         if i == args.num_cpus:
             break
@@ -247,6 +299,9 @@ def makeGpuFSSystem(args):
 
         for j in range(len(system.cpu[i].isa)):
             system.cpu[i].isa[j].vendor_string = "AuthenticAMD"
+            if use_avx:
+                system.cpu[i].isa[j].ExtendedState = avx_extended_state
+                system.cpu[i].isa[j].FamilyModelStepping = avx_cpu_features
 
     if args.host_parallel:
         # To get the KVM CPUs to run on different host CPUs, specify a
@@ -256,6 +311,12 @@ def makeGpuFSSystem(args):
             for obj in cpu.descendants():
                 obj.eventq_index = 0
             cpu.eventq_index = i + 1
+
+    # Disable KVM Perf counters if specified. This is useful for machines
+    # with more restrictive KVM paranoid levels.
+    if args.no_kvm_perf and ObjectList.is_kvm_cpu(TestCPUClass):
+        for i, cpu in enumerate(system.cpu[:-1]):
+            cpu.usePerf = False
 
     gpu_port_idx = (
         len(system.ruby._cpu_ports)

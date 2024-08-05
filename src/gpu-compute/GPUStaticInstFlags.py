@@ -54,6 +54,7 @@ class GPUStaticInstFlags(Enum):
         "MemoryRef",  # References memory (load, store, or atomic)
         "Flat",  # Flat memory op
         "FlatGlobal",  # Global memory op
+        "FlatScratch",  # Scratch memory op
         "Load",  # Reads from memory
         "Store",  # Writes to memory
         # Atomic ops
@@ -96,6 +97,8 @@ class GPUStaticInstFlags(Enum):
         # Coherence flags
         "GloballyCoherent",  # Coherent with other work-items on same device
         "SystemCoherent",  # Coherent with a different device, or the host
+        # Integer flags
+        "I8",  # Int8 operation
         # Floating-point flags
         "F16",  # F16 operation
         "F32",  # F32 operation
@@ -104,4 +107,5 @@ class GPUStaticInstFlags(Enum):
         "FMA",  # FMA
         "MAC",  # MAC
         "MAD",  # MAD
+        "MFMA",  # MFMA
     ]

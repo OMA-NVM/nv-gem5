@@ -33,18 +33,18 @@ run before, at, or after the running of `simulator.run`.
 time.
 """
 
-from gem5.resources.resource import Resource
-from gem5.isas import ISA
-from gem5.components.memory import SingleChannelDDR3_1600
-from gem5.components.boards.simple_board import SimpleBoard
-from gem5.components.cachehierarchies.classic.no_cache import NoCache
-from gem5.components.processors.simple_processor import SimpleProcessor
-from gem5.components.processors.cpu_types import CPUTypes
-from gem5.simulate.simulator import Simulator
+import argparse
 
 import m5
 
-import argparse
+from gem5.components.boards.simple_board import SimpleBoard
+from gem5.components.cachehierarchies.classic.no_cache import NoCache
+from gem5.components.memory import SingleChannelDDR3_1600
+from gem5.components.processors.cpu_types import CPUTypes
+from gem5.components.processors.simple_processor import SimpleProcessor
+from gem5.isas import ISA
+from gem5.resources.resource import obtain_resource
+from gem5.simulate.simulator import Simulator
 
 parser = argparse.ArgumentParser()
 
@@ -97,8 +97,10 @@ motherboard = SimpleBoard(
 )
 
 # Set the workload
-binary = Resource(
-    "x86-hello64-static", resource_directory=args.resource_directory
+binary = obtain_resource(
+    "x86-hello64-static",
+    resource_directory=args.resource_directory,
+    resource_version="1.0.0",
 )
 motherboard.set_se_binary_workload(binary)
 
@@ -110,9 +112,9 @@ if args.set_ticks_before:
 simulator = Simulator(board=motherboard)
 
 if args.set_ticks_at_execution:
-    simulator.run(max_ticks=args.set_ticks_at_execution)
-else:
-    simulator.run()
+    simulator.set_max_ticks(args.set_ticks_at_execution)
+
+simulator.run()
 
 # Set the max ticks after the simulator run.
 if args.set_ticks_after:
