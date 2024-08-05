@@ -2,7 +2,6 @@
 ## this is based on `x86-ubuntu-run-with-kbm-no-perf.py`
 ## so compare with it to see the differences
 ##
-import os
 
 from gem5.coherence_protocol import CoherenceProtocol
 from gem5.components.boards.x86_board import X86Board
@@ -59,8 +58,7 @@ board = X86Board(
     cache_hierarchy=cache_hierarchy,
 )
 
-pwd = os.getcwd()
-disk_image_path = f"{pwd}/images/disk.raw"  # Specify the path to your disk image
+disk_image_path = f"/workspace/NVM_Simulation/cdnc/images/disk.raw"  # Specify the path to your disk image
 # Pay attention that you are running gem5 from  devcontainer
 
 
