@@ -53,6 +53,13 @@ class DRAMInterface(MemInterface):
     cxx_header = "mem/dram_interface.hh"
     cxx_class = "gem5::memory::DRAMInterface"
 
+    # @CDNCcimFS
+    try:
+        from m5.objects.OurHandler import CimHandler
+        cimObj = Param.CimHandler(CimHandler(), "an object instance")
+    except ImportError:
+        pass
+
     # scheduler page policy
     page_policy = Param.PageManage("open_adaptive", "Page management policy")
 
