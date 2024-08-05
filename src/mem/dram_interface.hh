@@ -50,6 +50,10 @@
 #include "mem/mem_interface.hh"
 #include "params/DRAMInterface.hh"
 
+#ifdef CDNCcimFSflag
+#include "CDNCcimFStutorial/cim_handler.hh"
+#endif // CDNCcimFSflag
+
 namespace gem5
 {
 
