@@ -21,7 +21,7 @@ from gem5.components.memory.memory import ChanneledMemory
 
 requires(
     isa_required=ISA.X86,
-    # kvm_required=True,
+    kvm_required=True,
 )
 
 
@@ -40,13 +40,13 @@ memory._dram[0].cimObj.operations_latency = ["10ps", "10ps", "10ps"]
 # memory.mem_ctrl[0].mem_sched_policy = "fcfs"
 
 processor = SimpleProcessor(
-    cpu_type=CPUTypes.TIMING,
+    cpu_type=CPUTypes.KVM,
     isa=ISA.X86,
     num_cores=1,
 )
 
-# for proc in processor.get_cores():
-#     proc.core.usePerf = False
+for proc in processor.get_cores():
+    proc.core.usePerf = False
 
 
 board = X86Board(
@@ -79,6 +79,10 @@ board.set_kernel_disk_workload(
     ],
 )
 
+def handler():
+    print("checkpointing...")
+    simulator.save_checkpoint("ckp.1")
+    yield True
 
 simulator = Simulator(
     board=board,
@@ -87,8 +91,14 @@ simulator = Simulator(
     #     # exit event. Instead of exiting the simulator, we just want to
     #     # switch the processor. The 2nd m5 exit after will revert to using
     #     # default behavior where the simulator run will exit.
-    #     ExitEvent.EXIT: (func() for func in [processor.exit])
+    #     ExitEvent.EXIT: (func() for func in [processor.switch])
     # },
-    checkpoint_path="./ckp.1"
-) 
+    on_exit_event={
+        ExitEvent.EXIT: handler(),
+    },
+)
+
+
+
+
 simulator.run()
