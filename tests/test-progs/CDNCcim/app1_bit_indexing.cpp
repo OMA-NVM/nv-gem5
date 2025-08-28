@@ -126,7 +126,7 @@ cim()
     m5_exit(0);
 #elif defined(STD_PRINT_OUTPUT)
     for (uint32_t w = 0; w < NUM_WEEKS; w++) {
-        printf("%ld\n", ResultsCIM[w]);
+        printf("%lld\n", ResultsCIM[w]);
     }
 #endif // CHECKPOINT_FI
 }

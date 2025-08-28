@@ -603,7 +603,7 @@ def main():
     else:
         sys.path = [os.path.dirname(sys.argv[0])] + sys.path
         filename = sys.argv[0]
-        filedata = open(filename, "r").read()
+        filedata = open(filename, "r", encoding="utf-8").read()
         filecode = compile(filedata, filename, "exec")
         scope = {"__file__": filename, "__name__": "__m5_main__"}
 

@@ -55,7 +55,7 @@ system.mem_ranges = [AddrRange("1GiB")]  # Create an address range
 
 # Create Multiple CPUs
 num_cpus = 1
-system.cpu = [X86O3CPU() for i in range(num_cpus)]
+system.cpu = [DerivO3CPU() for i in range(num_cpus)]
 
 # X86MinorCPU() #X86O3CPU() #X86TimingSimpleCPU()
 
@@ -121,9 +121,9 @@ system.l2cache.connectMemSideBus(system.membus)
 # create the interrupt controller for the CPU
 for cpu in system.cpu:
     cpu.createInterruptController()
-    cpu.interrupts[0].pio = system.membus.mem_side_ports
-    cpu.interrupts[0].int_requestor = system.membus.cpu_side_ports
-    cpu.interrupts[0].int_responder = system.membus.mem_side_ports
+    # cpu.interrupts[0].pio = system.membus.mem_side_ports
+    # cpu.interrupts[0].int_requestor = system.membus.cpu_side_ports
+    # cpu.interrupts[0].int_responder = system.membus.mem_side_ports
 
 # Connect the system up to the membus
 system.system_port = system.membus.cpu_side_ports
@@ -161,7 +161,6 @@ system.mem_ctrl.dram.ranks_per_channel = 1
 system.mem_ctrl.dram.banks_per_rank = 16
 
 system.mem_ctrl.dram.range = system.mem_ranges[0]
-
 
 # Scons should be build with 'CDNCcim=1' flag!!!
 # otherwise comment these lines and also

@@ -21,11 +21,15 @@ echo -e "\t${bold}${blue}Compiling the source code...${normal}"
 fout=app1_bit_indexing
 # fout=app2_aes_ebc_enc
 
-g++ $optimization \
+arm-linux-gnueabihf-g++ $optimization \
 	./tests/test-progs/CDNCcim/$fout.cpp \
 	./tests/test-progs/CDNCcim/cim_api.cpp \
+	-I ./include \
+	-L ./util/m5/build/arm/out \
+	-Wl,--dynamic-linker=/usr/arm-linux-gnueabihf/lib/ld-linux-armhf.so.3 \
+  	-Wl,-rpath,/usr/arm-linux-gnueabihf/lib \
 	-o ./tests/test-progs/CDNCcim/$fout.exe \
-	-I ./include/ -lm5 -L ./util/m5/build/x86/out \
+	-lm5 \
 	-DNUM_ROWS=$var \
 	-DNUM_WEEKS=$var \
 	-DinCIM=$inCim \
@@ -33,13 +37,18 @@ g++ $optimization \
 
 echo -e "\t${bold}${blue}Running Simulation...${normal}"
 
-build/X86/gem5.opt --stdout-file=out.txt --stderr-file=err.txt \
+echo -e "---------------------------------------"
+file ./tests/test-progs/CDNCcim/app1_bit_indexing.exe
+readelf -l ./tests/test-progs/CDNCcim/app1_bit_indexing.exe | grep 'interpreter'
+echo -e "---------------------------------------"
+
+build/ARM/gem5.debug --stdout-file=out.txt --stderr-file=err.txt \
 	--stats-file=stat.txt --debug-file=debug.txt \
 	configs/CDNCcim/system_design_$tag.py "./tests/test-progs/CDNCcim/$fout.exe" \
 	--EndAddress $EndAddress
 
 echo -e "\n\t${bold}${blue}$fout ${blink}is Finished.${normal}"
 
-rm "./tests/test-progs/CDNCcim/$fout.exe"
+# rm "./tests/test-progs/CDNCcim/$fout.exe"
 
 echo -e "---------------------------------------"
