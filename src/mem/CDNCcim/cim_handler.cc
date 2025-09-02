@@ -53,6 +53,7 @@ void
 CimHandler::cimFetchCommand(
     AbstractMemory *abstract_mem, PacketPtr pkt, uint8_t *host_addr)
 {
+    DPRINTF(CIMDBG, "call cimFetchCommand\n");
     DPRINTF(
         CIMDBG, "[%s:%s:%s] from address: 0x%lx : command: 0x%016lx \n",
         __FILE__, __func__, __LINE__, pkt->getAddr(), *(uint64_t *)host_addr);
@@ -274,9 +275,9 @@ CimHandler::cimUpdateLatencyTable(bool init, uint8_t operation, size_t bank)
                         + operationsOnWordLatency[operation % 0x80]
                   : curTick() + operationsOnWordLatency[operation % 0x80];
     }
-    DPRINTF(
-        CIMDBG, "[%s:%s:%s] init: %d\t unitReleaseTime[%d]: %d\n", __FILE__,
-        __func__, __LINE__, init, bank, unitReleaseTime[bank]);
+    // DPRINTF(
+    //     CIMDBG, "[%s:%s:%s] init: %d\t unitReleaseTime[%d]: %d\n", __FILE__,
+    //     __func__, __LINE__, init, bank, unitReleaseTime[bank]);
 }
 
 uint8_t *

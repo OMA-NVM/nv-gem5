@@ -72,6 +72,11 @@ NVMInterface::NVMInterface(const NVMInterfaceParams &_p)
 
 #ifdef CDNCcimFlag
     cimHandlerList = _p.cim_handler_list;
+    printf("AbstractMemory: cimHandlerList size=%zu\n", cimHandlerList.size());
+    for (size_t i = 0; i < cimHandlerList.size(); i++) {
+        auto *h = cimHandlerList[i];
+        printf("  handler[%zu] ptr=%p \n", i, (void*)h);
+    }
 #endif // CDNCcimFlag
 
     fatal_if(
