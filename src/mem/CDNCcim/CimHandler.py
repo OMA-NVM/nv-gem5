@@ -31,11 +31,11 @@ class CimHandler(SimObject):
     # ============== Latency:
     operations_init_latency = VectorParam.Latency(
         [
-            "10ps",  # AND
-            "10ps",  # OR
-            "10ps",  # XOR
-            "10ps",  # NOT+CONDITION: (Always NOT, NOT if (Zero) or (NonZero))
-            "10ps",  # COPY+LeftRotate:
+            "10ns",  # AND
+            "10ns",  # OR
+            "10ns",  # XOR
+            "10ns",  # NOT+CONDITION: (Always NOT, NOT if (Zero) or (NonZero))
+            "10ns",  # COPY+LeftRotate:
             # (Internal copy inside the CIM region.
             # Also used for write back the result from output buffer to CIM)
         ],
@@ -43,11 +43,11 @@ class CimHandler(SimObject):
     )
     operations_on_word_latency = VectorParam.Latency(
         [
-            "10ps",  # AND
-            "10ps",  # OR
-            "10ps",  # XOR
-            "10ps",  # NOT+CONDITION: (Always NOT, NOT if (Zero) or (NonZero))
-            "10ps",  # COPY+LeftRotate:
+            "10ns",  # AND
+            "10ns",  # OR
+            "10ns",  # XOR
+            "10ns",  # NOT+CONDITION: (Always NOT, NOT if (Zero) or (NonZero))
+            "10ns",  # COPY+LeftRotate:
             # (Internal copy inside the CIM region.
             # Also used for write back the result from output buffer to CIM)
         ],

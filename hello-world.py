@@ -8,29 +8,24 @@ system.clk_domain = SrcClockDomain()
 system.clk_domain.clock = '3GHz'
 system.clk_domain.voltage_domain = VoltageDomain()
 
-system.mem_mode = 'atomic'                  
+# timing
+system.mem_mode = 'timing'
 system.mem_ranges = [AddrRange('1GiB')]
 
-# CPU
-system.cpu = AtomicSimpleCPU()
+# CPU TimingSimpleCPU
+system.cpu = TimingSimpleCPU()
 
-# No caches + a simple XBar
-# Create a memory bus
+# Bus
 system.membus = SystemXBar()
 system.membus.frontend_latency = 10
 system.membus.forward_latency = 10
 system.membus.response_latency = 10
 system.membus.snoop_response_latency = 10
+
 system.cpu.icache_port = system.membus.cpu_side_ports
 system.cpu.dcache_port = system.membus.cpu_side_ports
 system.system_port = system.membus.cpu_side_ports
 
-# --- Memory backend: SimpleMemory to hit AbstractMemory::access() ---
-# system.mem = SimpleMemory()
-# system.mem.range = system.mem_ranges[0]
-# system.mem.port = system.membus.mem_side_ports
-
-# Create a memory controller
 system.mem_ctrl = MemCtrl()
 system.mem_ctrl.mem_sched_policy = "fcfs"
 system.mem_ctrl.min_writes_per_switch = 1
@@ -59,68 +54,44 @@ system.mem_ctrl.dram.device_size = "1GiB"
 system.mem_ctrl.dram.device_bus_width = 64
 system.mem_ctrl.dram.devices_per_rank = 1
 system.mem_ctrl.dram.ranks_per_channel = 1
-system.mem_ctrl.dram.banks_per_rank = 16
-
+system.mem_ctrl.dram.banks_per_rank = 32
 system.mem_ctrl.dram.range = system.mem_ranges[0]
 
-# Attach CIM handlers (requires your build to define CDNCcimFlag)
+# CIM handler 
 try:
     system.mem_ctrl.dram.cim_handler_list = [CimHandler()]
-
     for cim in system.mem_ctrl.dram.cim_handler_list:
-        cim.num_column_bits = 5   
-        cim.num_bank_bits   = 0   
-        cim.num_row_bits    = 8  
-        
-        cim.cim_operation_handler = (
-            CimOperationInterface()
-        )  # or CimFaultInjection()
+        cim.num_column_bits = 6
+        cim.num_bank_bits   = 0
+        cim.num_row_bits    = 10
+
+        cim.cim_operation_handler = CimOperationInterface()
+
         cim.operations_init_latency = [
-            "75ps",  # these values will be multiplied by num_banks
-            "75ps",
-            "75ps",
-            "100ps",
-            "100ps",
+            "2.821ns", "2.821ns", "2.821ns", "2.821ns", "6.56ns",
         ]
         cim.operations_on_word_latency = [
-            "5ps",  # these values will be multiplied by num_banks * num_columns
-            "5ps",
-            "5ps",
-            "10ps",
-            "10ps",
+            "2.821ns", "2.821ns", "2.821ns", "2.821ns", "6.56ns",
         ]
 except Exception as e:
-    print("WARNING: CIM not enabled or SimObjects not found:", e)
+    print("WARNING: CIM not enabled or SimObjects not found:", e) 
 
 # IRQs
 system.cpu.createInterruptController()
 
-# --- Binary (the one we just built) ---
+# --- Binary ---
 binary = "./tests/test-progs/lab/bin/hello64-static"
-# binary = "./tests/test-progs/hello/bin/arm/linux/hello"
-
-# Binary to execute
 SimpleOpts.add_option("binary", nargs="?", default=binary)
 
 EndAddress = 0x12000018
-
-SimpleOpts.add_option(
-    "--EndAddress",
-    type=str,
-    help="End Address value for CIM module.",
-    default="0x12000018",
-)
-
+SimpleOpts.add_option("--EndAddress", type=str, default="0x12000018")
 
 system.workload = SEWorkload.init_compatible(binary)
 process = Process()
 process.cmd = [binary]
-
 system.cpu.workload = process
 system.cpu.createThreads()
 
-# Map CIM MMIO regions into the process VA == PA (SE mode)
-# Covers 0x1000_0000 .. 0x1200_0018 (adjust size as you need)
 root = Root(full_system=False, system=system)
 m5.instantiate()
 process.map(

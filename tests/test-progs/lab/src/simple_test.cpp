@@ -76,7 +76,6 @@ void cpu()
     }
 }
 #else
-// 暫存把 CIM 週 OR 結果（或你指定的 row）拉回 CPU
 uint64_t ResTemp[NUM_USER_INT] = {0};
 
 void cim()
@@ -103,11 +102,11 @@ void cim()
         const uint64_t colmask  = 0xFFFFFFFFFFFFFFFFull;
 
         // 1. Write the OR result to buffer's row = dest_row
-        cimModule.OR({0, 1}, bytemask, bankmask, colmask, /*dest=*/dest_row);
+        cimModule.OR({0, 1}, bytemask, bankmask, colmask, dest_row);
 
         // 2. Copy the result from buffer's dest_row to data's dest_row
         //   Here src need to add 0x100, which means the source is from buffer
-        cimModule.COPY(/*dest_data=*/dest_row, /*src=*/(0x100u | dest_row));
+        cimModule.COPY(dest_row, (0x100u | dest_row));
 
         // 3. Write back the result to CPU
         cimModule.copy_to_cpu((void*)ResTemp, dest_row);

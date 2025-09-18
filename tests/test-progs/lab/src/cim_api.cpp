@@ -68,6 +68,9 @@ CimModule::COPY(
     c1.row_number[0] = src;
     c1.operation_flag_mask = rotate_left;
 
+    printf("[CIM COPY] src=%u (0x%04x), dest=%u (0x%04x), rotate_left=%u\n",
+           src, src, dest, dest, rotate_left);
+
     c1.print();
     c1.issue();
 }
@@ -106,6 +109,9 @@ CimModule::copy_to_cim(
     std::memcpy(
         (void *)(readWriteAddress + (row * DEFAULT_ROW_SIZE_BYTE >> 3)),
         cpu_array, size_in_byte);
+
+    printf("[CIM copy_to_cim] row=%u, size=%zu, readWriteAddress=%p, dest=%p\n",
+           row, size_in_byte, (void*)readWriteAddress, dest);
 }
 
 void
@@ -117,6 +123,9 @@ CimModule::copy_to_cpu(
         cpu_array,
         (void *)(readWriteAddress + (row * DEFAULT_ROW_SIZE_BYTE >> 3)),
         size_in_byte);
+
+    printf("[CIM copy_to_cpu] row=%u, size=%zu, readWriteAddress=%p, dest=%p\n",
+           row, size_in_byte, (void*)readWriteAddress, dest);
 }
 
 void

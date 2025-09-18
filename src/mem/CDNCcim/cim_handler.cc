@@ -134,6 +134,7 @@ void
 CimHandler::cimExecuteCommand(
     AbstractMemory *abstract_mem, CommandDecode &command)
 {
+    cimOpCmdCount++;
     DPRINTF(
         CIMDBG, "[%s:%s:%s] cimExecuteCommand\n", __FILE__, __func__,
         __LINE__);
@@ -172,11 +173,24 @@ CimHandler::cimExecuteCommand(
                                 command.dest, bank, column);
                             std::vector<uint8_t *> rows;
                             for (auto &row : command.row_number) {
-                                if (row < (1ul << numRowBits))
+                                if (row < (1ul << numRowBits)) {
                                     rows.push_back(addressTranslator(
                                         abstract_mem, readWriteAddress, row,
                                         bank, column));
+                                    
+                                    // Debug print for each input row
+                                    uint8_t *src_ptr = addressTranslator(
+                                        abstract_mem, readWriteAddress, row, bank, column);
+                                    rows.push_back(src_ptr);
+
+                                    printf("[CIM OR] src row=%u bank=%lu col=%lu addr=%p\n",
+                                        row, bank, column, src_ptr);
+                                }                
                             }
+
+                            printf("[CIM OR] dest row=%u bank=%lu col=%lu addr=%p, byte_mask=0x%02x\n",
+                                command.dest, bank, column, dest, command.byte_mask);
+
                             assert(rows.size() > 1);
                             cimOperationHandler->OR(
                                 rows, dest, command.byte_mask);
@@ -258,26 +272,47 @@ CimHandler::cimExecuteCommand(
 void
 CimHandler::cimUpdateLatencyTable(bool init, uint8_t operation, size_t bank)
 {
-    if (init) {
-        unitReleaseTime[bank]
-            = (static_cast<int64_t>(unitReleaseTime[bank])
-                   - static_cast<int64_t>(curTick())
-               > 0)
-                  ? unitReleaseTime[bank]
-                        + operationsInitLatency[operation % 0x80]
-                  : curTick() + operationsInitLatency[operation % 0x80];
+    // 這次要加的延遲（ticks）
+    const Tick delta = init
+        ? operationsInitLatency[operation % 0x80]
+        : operationsOnWordLatency[operation % 0x80];
+
+    // 這段工作的實際起迄
+    Tick start, end;
+
+    // 依照你現有的「串接或從現在開始」邏輯，先算出 start/end
+    if ((int64_t)unitReleaseTime[bank] - (int64_t)curTick() > 0) {
+        // 還在忙，往後串
+        start = unitReleaseTime[bank];
+        end   = unitReleaseTime[bank] + delta;
+        unitReleaseTime[bank] = end;
     } else {
-        unitReleaseTime[bank]
-            = (static_cast<int64_t>(unitReleaseTime[bank])
-                   - static_cast<int64_t>(curTick())
-               > 0)
-                  ? unitReleaseTime[bank]
-                        + operationsOnWordLatency[operation % 0x80]
-                  : curTick() + operationsOnWordLatency[operation % 0x80];
+        // 閒置，從現在開始
+        start = curTick();
+        end   = curTick() + delta;
+        unitReleaseTime[bank] = end;
     }
-    // DPRINTF(
-    //     CIMDBG, "[%s:%s:%s] init: %d\t unitReleaseTime[%d]: %d\n", __FILE__,
-    //     __func__, __LINE__, init, bank, unitReleaseTime[bank]);
+
+    // === 新增：統計 ===
+    cimWorkTicksSum += delta;
+    if (init) cimInitChunkCount++; else cimWordChunkCount++;
+
+    // 忙碌聯集（假設 start 會隨時間遞增，現有流程成立）
+    if (start >= unionBusyUntil) {
+        cimWorkTicksUnion += (end - start);
+        unionBusyUntil = end;
+    } else if (end > unionBusyUntil) {
+        cimWorkTicksUnion += (end - unionBusyUntil);
+        unionBusyUntil = end;
+    }
+    // === 統計結束 ===
+
+    DPRINTF(CIMDBG,
+        "[%s:%s:%d] init:%d bank:%lu  start:%lld end:%lld delta:%lld  "
+        "unitRelease:%lld unionUntil:%lld\n",
+        __FILE__, __func__, __LINE__, init, bank,
+        (long long)start, (long long)end, (long long)delta,
+        (long long)unitReleaseTime[bank], (long long)unionBusyUntil);
 }
 
 uint8_t *
@@ -311,6 +346,38 @@ CimHandler::getCimLatency(const Addr &addr)
     if (left_time > 0)
         return left_time;
     return 0;
+}
+
+void
+CimHandler::regStats()
+{
+    SimObject::regStats();
+    using namespace gem5::statistics;
+
+    cimWorkTicksSum
+        .name(name() + ".cimWorkTicksSum")
+        .desc("Sum of internal CIM work time (ticks) "
+              "== sum of all init+on_word latencies added");
+
+    cimWorkTicksUnion
+        .name(name() + ".cimWorkTicksUnion")
+        .desc("Union of CIM busy time across all banks (ticks); "
+              "approx. wall-clock busy time for CIM");
+
+    cimInitChunkCount
+        .name(name() + ".cimInitChunkCount")
+        .desc("# of init-latency chunks added to schedule");
+
+    cimWordChunkCount
+        .name(name() + ".cimWordChunkCount")
+        .desc("# of on-word-latency chunks added to schedule");
+
+    cimOpCmdCount
+        .name(name() + ".cimOpCmdCount")
+        .desc("# of CIM commands (cimExecuteCommand calls)");
+
+    // 可選：也可以加一個轉秒的公式輸出（看你需不需要）
+    // Stats::Formula cimWorkSeconds = cimWorkTicksSum / SimClock::Frequency;
 }
 
 void

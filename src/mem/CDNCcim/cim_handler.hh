@@ -16,6 +16,7 @@
 #include "mem/mem_ctrl.hh"
 #include "params/CimHandler.hh"
 #include "sim/sim_object.hh"
+#include "base/statistics.hh"
 
 namespace gem5
 {
@@ -73,6 +74,16 @@ class CimHandler : public SimObject
     std::vector<Tick> operationsOnWordLatency;
     //
     Tick *unitReleaseTime;
+
+    // === 新增：統計欄位 ===
+    statistics::Scalar cimWorkTicksSum;    // 內部工作時間總和（每段 latency 相加）
+    statistics::Scalar cimWorkTicksUnion;  // 忙碌聯集（至少一個 bank 在忙）
+    statistics::Scalar cimInitChunkCount;  // init 區段次數
+    statistics::Scalar cimWordChunkCount;  // on-word 區段次數
+    statistics::Scalar cimOpCmdCount;      // 指令（高層一次 op）次數
+
+    Tick unionBusyUntil = 0;          // 聯集累積指標
+
     //
     void cimExecuteCommand(
         AbstractMemory *abstract_mem, CommandDecode &command);
@@ -117,6 +128,8 @@ class CimHandler : public SimObject
         AbstractMemory *abstract_mem, PacketPtr pkt, uint8_t *host_addr);
 
     Tick getCimLatency(const Addr &addr);
+
+    void regStats() override;
 };
 } // namespace memory
 } // namespace gem5
