@@ -61,9 +61,9 @@ system.mem_ctrl.dram.range = system.mem_ranges[0]
 try:
     system.mem_ctrl.dram.cim_handler_list = [CimHandler()]
     for cim in system.mem_ctrl.dram.cim_handler_list:
-        cim.num_column_bits = 6
+        cim.num_column_bits = 9
         cim.num_bank_bits   = 0
-        cim.num_row_bits    = 10
+        cim.num_row_bits    = 8
 
         cim.cim_operation_handler = CimOperationInterface()
 

@@ -183,13 +183,11 @@ CimHandler::cimExecuteCommand(
                                         abstract_mem, readWriteAddress, row, bank, column);
                                     rows.push_back(src_ptr);
 
-                                    printf("[CIM OR] src row=%u bank=%lu col=%lu addr=%p\n",
-                                        row, bank, column, src_ptr);
+                                    //printf("[CIM OR] src row=%u bank=%lu col=%lu addr=%p\n", row, bank, column, src_ptr);
                                 }                
                             }
 
-                            printf("[CIM OR] dest row=%u bank=%lu col=%lu addr=%p, byte_mask=0x%02x\n",
-                                command.dest, bank, column, dest, command.byte_mask);
+                            //printf("[CIM OR] dest row=%u bank=%lu col=%lu addr=%p, byte_mask=0x%02x\n", command.dest, bank, column, dest, command.byte_mask);
 
                             assert(rows.size() > 1);
                             cimOperationHandler->OR(
@@ -272,32 +270,25 @@ CimHandler::cimExecuteCommand(
 void
 CimHandler::cimUpdateLatencyTable(bool init, uint8_t operation, size_t bank)
 {
-    // 這次要加的延遲（ticks）
     const Tick delta = init
         ? operationsInitLatency[operation % 0x80]
         : operationsOnWordLatency[operation % 0x80];
 
-    // 這段工作的實際起迄
     Tick start, end;
 
-    // 依照你現有的「串接或從現在開始」邏輯，先算出 start/end
     if ((int64_t)unitReleaseTime[bank] - (int64_t)curTick() > 0) {
-        // 還在忙，往後串
         start = unitReleaseTime[bank];
         end   = unitReleaseTime[bank] + delta;
         unitReleaseTime[bank] = end;
     } else {
-        // 閒置，從現在開始
         start = curTick();
         end   = curTick() + delta;
         unitReleaseTime[bank] = end;
     }
 
-    // === 新增：統計 ===
     cimWorkTicksSum += delta;
     if (init) cimInitChunkCount++; else cimWordChunkCount++;
 
-    // 忙碌聯集（假設 start 會隨時間遞增，現有流程成立）
     if (start >= unionBusyUntil) {
         cimWorkTicksUnion += (end - start);
         unionBusyUntil = end;
@@ -305,7 +296,6 @@ CimHandler::cimUpdateLatencyTable(bool init, uint8_t operation, size_t bank)
         cimWorkTicksUnion += (end - unionBusyUntil);
         unionBusyUntil = end;
     }
-    // === 統計結束 ===
 
     DPRINTF(CIMDBG,
         "[%s:%s:%d] init:%d bank:%lu  start:%lld end:%lld delta:%lld  "
@@ -375,14 +365,12 @@ CimHandler::regStats()
     cimOpCmdCount
         .name(name() + ".cimOpCmdCount")
         .desc("# of CIM commands (cimExecuteCommand calls)");
-
-    // 可選：也可以加一個轉秒的公式輸出（看你需不需要）
-    // Stats::Formula cimWorkSeconds = cimWorkTicksSum / SimClock::Frequency;
 }
 
 void
 CimHandler::CommandDecode::print()
 {
+    if (operation_type != 0x04) return;
     DPRINTFR(CIMDBG, "-------\n** Printing command: \n");
     DPRINTFR(
         CIMDBG, "type: %02x, flag: %02x, byte_mask: %02x\n", operation_type,

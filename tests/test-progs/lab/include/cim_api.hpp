@@ -11,7 +11,7 @@
 
 #define DEFAULT_READWRITE_ADDRESS ((volatile uint64_t *const)0x10000000ul)
 #define DEFAULT_COMMAND_ADDRESS ((volatile uint64_t *const)0x12000000ul)
-#define DEFAULT_ROW_SIZE_BYTE (0x40u)   // 512B = 64 cols × 8B/col
+#define DEFAULT_ROW_SIZE_BYTE (0x200u)   // 512B = 64 cols × 8B/col
 
 class CimModule
 {

@@ -21,7 +21,7 @@ CimModule::generateCommand(
         c1.operation_flag_mask |= (1u << i);
     }
 
-    c1.print();
+    // c1.print();
     c1.issue();
 }
 
@@ -68,10 +68,7 @@ CimModule::COPY(
     c1.row_number[0] = src;
     c1.operation_flag_mask = rotate_left;
 
-    printf("[CIM COPY] src=%u (0x%04x), dest=%u (0x%04x), rotate_left=%u\n",
-           src, src, dest, dest, rotate_left);
-
-    c1.print();
+    // c1.print();
     c1.issue();
 }
 
@@ -97,7 +94,7 @@ CimModule::NOT_COND(
         c1.operation_flag_mask += static_cast<uint8_t>(1);
     }
 
-    c1.print();
+    // c1.print();
     c1.issue();
 }
 
@@ -110,8 +107,8 @@ CimModule::copy_to_cim(
         (void *)(readWriteAddress + (row * DEFAULT_ROW_SIZE_BYTE >> 3)),
         cpu_array, size_in_byte);
 
-    printf("[CIM copy_to_cim] row=%u, size=%zu, readWriteAddress=%p, dest=%p\n",
-           row, size_in_byte, (void*)readWriteAddress, dest);
+    // printf("[CIM copy_to_cim] row=%u, size=%zu, readWriteAddress=%p, dest=%p\n",
+    //        row, size_in_byte, (void*)readWriteAddress, dest);
 }
 
 void
@@ -124,8 +121,8 @@ CimModule::copy_to_cpu(
         (void *)(readWriteAddress + (row * DEFAULT_ROW_SIZE_BYTE >> 3)),
         size_in_byte);
 
-    printf("[CIM copy_to_cpu] row=%u, size=%zu, readWriteAddress=%p, dest=%p\n",
-           row, size_in_byte, (void*)readWriteAddress, dest);
+    // printf("[CIM copy_to_cpu] row=%u, size=%zu, readWriteAddress=%p, dest=%p\n",
+    //        row, size_in_byte, (void*)readWriteAddress, dest);
 }
 
 void
@@ -182,6 +179,65 @@ CimModule::CommandEncode::issue()
             command_to_send |= ((uint64_t)dest) << (8 * 2);
             command_to_send |= ((uint64_t)(row_number[0] & 0xffffu));
         }
+
+        // === DEBUG: dump encoded command just written ===
+        // {
+        //     volatile uint64_t *cmd = &command_to_send;
+        //     uint64_t w0 = cmd[0], w1 = cmd[1], w2 = cmd[2];
+
+        //     printf("[CIM ISSUE][RAW] @%p  w0=%016llx w1=%016llx w2=%016llx\n",
+        //         (void*)cmd,
+        //         (unsigned long long)w0,
+        //         (unsigned long long)w1,
+        //         (unsigned long long)w2);
+
+        //     if (w0 == 0 && w1 == 0 && w2 == 0) {
+        //         printf("[CIM ISSUE] commandAddress is all zero (maybe fetched/cleared already)\n");
+        //     } else if (w0 & (1ull << 63)) {
+        //         // Short instruction
+        //         uint8_t  op     = (w0 >> 56) & 0xff;
+        //         uint8_t  base   = op & 0x7f;             // 0x00.. for AND/OR/XOR/COPY/NOT_COND
+        //         uint8_t  flags  = (w0 >> 48) & 0xff;
+        //         uint8_t  bytem  = (w0 >> 32) & 0xff;
+        //         printf("[CIM ISSUE][SHORT] op=0x%02x (base=0x%02x) flags=0x%02x byte_mask=0x%02x\n",
+        //             op, base, flags, bytem);
+
+        //         if (base < 3) {
+        //             // SHORT_LOGIC: AND/OR/XOR
+        //             uint8_t dest8 = (w0 >> 40) & 0xff;
+        //             printf("  logic: dest(8b)=0x%02x rows(0..3) bytes=%08x\n",
+        //                 dest8, (unsigned)((uint32_t)(w0 & 0xffffffffu)));
+        //         } else {
+        //             // SHORT_COPY / SHORT_NOT_COND
+        //             uint16_t dest16 = (w0 >> 16) & 0xffff;
+        //             uint16_t src16  =  w0        & 0xffff;
+        //             printf("  copy/not: dest(16b)=0x%04x src(16b)=0x%04x\n",
+        //                 dest16, src16);
+        //         }
+        //     } else {
+        //         // Long instruction
+        //         uint8_t  op     = (w0 >> 56) & 0xff;
+        //         uint8_t  base   = op % 0x80;
+        //         uint8_t  flags  = (w0 >> 48) & 0xff;
+        //         uint8_t  bytem  = (w0 >> 32) & 0xff;
+        //         uint32_t bankm  =  w0 & 0xffffffffu;
+        //         printf("[CIM ISSUE][LONG ] op=0x%02x (base=0x%02x) flags=0x%02x byte_mask=0x%02x bank_mask=0x%08x col_mask=0x%016llx\n",
+        //             op, base, flags, bytem, bankm, (unsigned long long)w1);
+
+        //         if (base < 3) {
+        //             // LONG_LOGIC
+        //             uint8_t dest8 = (w0 >> 40) & 0xff;
+        //             printf("  logic: dest(8b)=0x%02x rows(0..7) bytes=%016llx\n",
+        //                 dest8, (unsigned long long)w2);
+        //         } else {
+        //             // LONG_COPY / LONG_NOT_COND
+        //             uint16_t dest16 = (w2 >> 16) & 0xffff;
+        //             uint16_t src16  =  w2        & 0xffff;
+        //             printf("  copy/not: dest(16b)=0x%04x src(16b)=0x%04x\n",
+        //                 dest16, src16);
+        //         }
+        //     }
+        // }
         // volatile uint64_t *command_address = (uint64_t *)commandAddress;
         *commandAddress = command_to_send;
     }
@@ -215,6 +271,4 @@ CimModule::CommandEncode::issue()
         commandAddress[1] = command_to_send[1];
         commandAddress[2] = command_to_send[2];
     }
-
-    printf("write to @%p\n", (void*)commandAddress);
 }
