@@ -11,7 +11,7 @@
 
 #define DEFAULT_READWRITE_ADDRESS ((volatile uint64_t *const)0x10000000ul)
 #define DEFAULT_COMMAND_ADDRESS ((volatile uint64_t *const)0x12000000ul)
-#define DEFAULT_ROW_SIZE_BYTE (0x200u)   // 512B = 64 cols × 8B/col
+#define DEFAULT_ROW_SIZE_BYTE (0x40u)   // 512B = 64 cols × 8B/col
 
 class CimModule
 {
@@ -94,6 +94,14 @@ class CimModule
     void copy_to_cpu(
         void *cpu_array, const uint16_t &row,
         size_t size_in_byte = DEFAULT_ROW_SIZE_BYTE);
+    
+    // decode bank
+    void copy_to_cim(
+        const uint8_t bank, const uint16_t &row, void *cpu_array,
+        int num_bank_bits, size_t size_in_byte = DEFAULT_ROW_SIZE_BYTE);
+    void copy_to_cpu(
+        void *cpu_array, const uint8_t bank, const uint16_t &row,
+        int num_bank_bits, size_t size_in_byte = DEFAULT_ROW_SIZE_BYTE);
 };
 
 #endif //__CIM_API__HPP__

@@ -201,10 +201,11 @@ CimHandler::cimExecuteCommand(
                                 command.dest, bank, column);
                             std::vector<uint8_t *> rows;
                             for (auto &row : command.row_number) {
-                                if (row < (1ul << numRowBits))
+                                if (row < (1ul << numRowBits)) {
                                     rows.push_back(addressTranslator(
                                         abstract_mem, readWriteAddress, row,
                                         bank, column));
+                                }
                             }
                             assert(rows.size() > 1);
                             cimOperationHandler->XOR(
