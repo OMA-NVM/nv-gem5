@@ -46,7 +46,7 @@ class CimHandler : public SimObject
         uint8_t operation_flag_mask { 0 };
         //
         uint8_t byte_mask { 0xffu };
-        uint32_t bank_mask { 0xfffffffu };
+        uint64_t bank_mask { 0xfffffffffffffffful };
         uint64_t column_mask { 0xfffffffffffffffful };
         //
         uint16_t row_number[8] { 0xffffu, 0xffffu, 0xffffu, 0xffffu,

@@ -28,7 +28,7 @@ class CimModule
         uint8_t operation_flag_mask { 0 };
         //
         uint8_t byte_mask { 0xffu };
-        uint32_t bank_mask { 0xfffffffu };
+        uint64_t bank_mask { 0xfffffffffffffffful };
         uint64_t column_mask { 0xfffffffffffffffful };
         //
         uint16_t row_number[8] { 0xffffu, 0xffffu, 0xffffu, 0xffffu,
@@ -47,7 +47,7 @@ class CimModule
     void generateCommand(
         const uint8_t op_type, const std::vector<uint8_t> &rows,
         const uint8_t &byte_mask = 0xffu,
-        const uint32_t &bank_mask = 0xffffffffu,
+        const uint64_t &bank_mask = 0xfffffffffffffffful,
         const uint64_t &column_mask = 0xfffffffffffffffful,
         const uint8_t &dest = 0x00u);
 
@@ -63,29 +63,29 @@ class CimModule
 
     void AND(
         const std::vector<uint8_t> &rows, const uint8_t &byte_mask = 0xffu,
-        const uint32_t &bank_mask = 0xffffffffu,
+        const uint64_t &bank_mask = 0xfffffffffffffffful,
         const uint64_t &column_mask = 0xfffffffffffffffful,
         const uint8_t &dest = 0x00u);
     void OR(
         const std::vector<uint8_t> &rows, const uint8_t &byte_mask = 0xffu,
-        const uint32_t &bank_mask = 0xffffffffu,
+        const uint64_t &bank_mask = 0xfffffffffffffffful,
         const uint64_t &column_mask = 0xfffffffffffffffful,
         const uint8_t &dest = 0x00u);
     void XOR(
         const std::vector<uint8_t> &rows, const uint8_t &byte_mask = 0xffu,
-        const uint32_t &bank_mask = 0xffffffffu,
+        const uint64_t &bank_mask = 0xfffffffffffffffful,
         const uint64_t &column_mask = 0xfffffffffffffffful,
         const uint8_t &dest = 0x00u);
 
     void COPY(
         const uint16_t &dest, const uint16_t &src = 0x100,
         const uint8_t &rotate_left = 0, const uint8_t &byte_mask = 0xffu,
-        const uint32_t &bank_mask = 0xffffffffu,
+        const uint64_t &bank_mask = 0xfffffffffffffffful,
         const uint64_t &column_mask = 0xfffffffffffffffful);
     void NOT_COND(
         const uint16_t &dest, const uint16_t &src, const bool &always_NOT,
         const bool &NOT_if_zero, const uint8_t &byte_mask = 0xffu,
-        const uint32_t &bank_mask = 0xffffffffu,
+        const uint64_t &bank_mask = 0xfffffffffffffffful,
         const uint64_t &column_mask = 0xfffffffffffffffful);
 
     void copy_to_cim(

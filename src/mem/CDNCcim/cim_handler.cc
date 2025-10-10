@@ -93,7 +93,8 @@ CimHandler::cimFetchCommand(
                     command.operation_type);
                 break;
         }
-    } else // Long instruction (3 * 64 bit)
+    } 
+    else // Long instruction (3 * 64 bit)
     {
         if ((command_address[1] == 0ul) || (command_address[2] == 0ul))
             return;
@@ -101,7 +102,10 @@ CimHandler::cimFetchCommand(
         command.operation_flag_mask = (command_address[0] >> (8 * 6)) & 0xffu;
         command.byte_mask = (command_address[0] >> (8 * 4)) & 0xffu;
 
-        command.bank_mask = command_address[0] & 0xffffffffu;
+        // command.bank_mask = command_address[0] & 0xffffffffu; // 32 bits bank mask
+        command.bank_mask = command_address[0] & 0xffffffffu; // 64 bits bank mask
+        uint64_t bank_hi  = command_address[3];
+        command.bank_mask |= (bank_hi << 32); 
         command.column_mask = command_address[1];
 
         switch (static_cast<OperationType>(command.operation_type)) {
@@ -128,8 +132,10 @@ CimHandler::cimFetchCommand(
     command_address[0] = 0ul;
     command_address[1] = 0ul;
     command_address[2] = 0ul;
+    command_address[3] = 0ul;
     cimExecuteCommand(abstract_mem, command);
 }
+
 void
 CimHandler::cimExecuteCommand(
     AbstractMemory *abstract_mem, CommandDecode &command)
@@ -140,8 +146,13 @@ CimHandler::cimExecuteCommand(
         __LINE__);
     command.print();
 
-    for (size_t bank = 0; bank < (1ul << numBankBits); bank++) {
-        if (command.bank_mask & (1ul << bank)) {
+    // printf("[CIM] Execute command type=%u dest=%u bank_mask=0x%016llx col_mask=0x%016llx\n",
+    //    command.operation_type, command.dest,
+    //    (unsigned long long)command.bank_mask,
+    //    (unsigned long long)command.column_mask);
+
+    for (size_t bank = 0; bank < (1ull << numBankBits); bank++) {
+        if (command.bank_mask & (1ull << bank)) {
             cimUpdateLatencyTable(true, command.operation_type, bank);
             for (size_t column = 0;
                  column < (1ul << (numColumnBits - byteBits)); column++) {
@@ -199,6 +210,7 @@ CimHandler::cimExecuteCommand(
                             uint8_t *dest = addressTranslator(
                                 abstract_mem, resultTemporaryBufferAddress,
                                 command.dest, bank, column);
+                            // printf("[CIM XOR] dest=%p", static_cast<void*>(dest));
                             std::vector<uint8_t *> rows;
                             for (auto &row : command.row_number) {
                                 if (row < (1ul << numRowBits)) {
@@ -377,7 +389,7 @@ CimHandler::CommandDecode::print()
         CIMDBG, "type: %02x, flag: %02x, byte_mask: %02x\n", operation_type,
         operation_flag_mask, byte_mask);
     DPRINTFR(
-        CIMDBG, "bank_mask: %08x , column_mask: %016lx\n", bank_mask,
+        CIMDBG, "bank_mask: %016lxx , column_mask: %016lx\n", bank_mask,
         column_mask);
     DPRINTFR(CIMDBG, "row: %04x \n", row_number[0]);
     DPRINTFR(CIMDBG, "row: %04x \n", row_number[1]);

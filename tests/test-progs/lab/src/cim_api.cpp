@@ -4,7 +4,7 @@
 void
 CimModule::generateCommand(
     const uint8_t op_type, const std::vector<uint8_t> &rows,
-    const uint8_t &byte_mask, const uint32_t &bank_mask,
+    const uint8_t &byte_mask, const uint64_t &bank_mask,
     const uint64_t &column_mask, const uint8_t &dest)
 {
     assert((rows.size() >= 2) || (rows.size() <= 8));
@@ -29,7 +29,7 @@ CimModule::generateCommand(
 void
 CimModule::AND(
     const std::vector<uint8_t> &rows, const uint8_t &byte_mask,
-    const uint32_t &bank_mask, const uint64_t &column_mask,
+    const uint64_t &bank_mask, const uint64_t &column_mask,
     const uint8_t &dest)
 {
     generateCommand(0, rows, byte_mask, bank_mask, column_mask, dest);
@@ -38,7 +38,7 @@ CimModule::AND(
 void
 CimModule::OR(
     const std::vector<uint8_t> &rows, const uint8_t &byte_mask,
-    const uint32_t &bank_mask, const uint64_t &column_mask,
+    const uint64_t &bank_mask, const uint64_t &column_mask,
     const uint8_t &dest)
 {
     generateCommand(1, rows, byte_mask, bank_mask, column_mask, dest);
@@ -47,7 +47,7 @@ CimModule::OR(
 void
 CimModule::XOR(
     const std::vector<uint8_t> &rows, const uint8_t &byte_mask,
-    const uint32_t &bank_mask, const uint64_t &column_mask,
+    const uint64_t &bank_mask, const uint64_t &column_mask,
     const uint8_t &dest)
 {
     generateCommand(2, rows, byte_mask, bank_mask, column_mask, dest);
@@ -56,7 +56,7 @@ CimModule::XOR(
 void
 CimModule::COPY(
     const uint16_t &dest, const uint16_t &src, const uint8_t &rotate_left,
-    const uint8_t &byte_mask, const uint32_t &bank_mask,
+    const uint8_t &byte_mask, const uint64_t &bank_mask,
     const uint64_t &column_mask)
 {
     CommandEncode c1(this->commandWriteAddress);
@@ -77,7 +77,7 @@ void
 CimModule::NOT_COND(
     const uint16_t &dest, const uint16_t &src, const bool &always_NOT,
     const bool &NOT_if_zero, const uint8_t &byte_mask,
-    const uint32_t &bank_mask, const uint64_t &column_mask)
+    const uint64_t &bank_mask, const uint64_t &column_mask)
 {
     CommandEncode c1(this->commandWriteAddress);
 
@@ -194,67 +194,56 @@ CimModule::CommandEncode::issue()
 {
     uint8_t row_counter = 0;
     for (auto row : row_number)
-    {
-        if (row < 256)
-            row_counter++;
-    }
+        if (row < 256) row_counter++;
 
-    // Check for short Command
-    if ((row_counter <= 4) && (bank_mask == 0xffffffffu)
-        && (column_mask == 0xfffffffffffffffful))
+    if ((row_counter <= 4) &&
+        (bank_mask   == 0xffffffffffffffffull) &&
+        (column_mask == 0xffffffffffffffffull))
     {
         uint64_t command_to_send = 0;
-        //
         command_to_send |= ((uint64_t)(operation_type | 0x80u)) << (8 * 7);
-        command_to_send |= ((uint64_t)operation_flag_mask) << (8 * 6);
-        command_to_send |= ((uint64_t)byte_mask) << (8 * 4);
-        //
-        if ((operation_type % 0x80) < 3) // and or xor:
-        {
+        command_to_send |= ((uint64_t)operation_flag_mask)       << (8 * 6);
+        command_to_send |= ((uint64_t)byte_mask)                 << (8 * 4);
+
+        if ((operation_type % 0x80) < 3) {
             command_to_send |= ((uint64_t)dest) << (8 * 5);
             for (size_t i = 0; i < row_counter; i++)
-            {
-                command_to_send |= ((uint64_t)(row_number[i] & 0xffu))
-                                   << (8 * i);
-            }
-        }
-        else
-        {
+                command_to_send |= ((uint64_t)(row_number[i] & 0xffu)) << (8 * i);
+        } else {
             command_to_send |= ((uint64_t)dest) << (8 * 2);
             command_to_send |= ((uint64_t)(row_number[0] & 0xffffu));
         }
 
-        // volatile uint64_t *command_address = (uint64_t *)commandAddress;
         *commandAddress = command_to_send;
+        return;
     }
-    else
-    {
-        uint64_t command_to_send[3] { 0 };
-        command_to_send[0] |= ((uint64_t)operation_type) << (8 * 7);
-        command_to_send[0] |= ((uint64_t)operation_flag_mask) << (8 * 6);
-        command_to_send[0] |= ((uint64_t)byte_mask) << (8 * 4);
-        command_to_send[0] |= ((uint64_t)bank_mask);
-        //
-        command_to_send[1] = column_mask;
-        //
-        if ((operation_type % 0x80) < 3) // and or xor:
-        {
-            command_to_send[0] |= ((uint64_t)dest) << (8 * 5);
-            for (size_t i = 0; i < row_counter; i++)
-            {
-                command_to_send[2] |= ((uint64_t)(row_number[i] & 0xffu))
-                                      << (8 * i);
-            }
-        }
-        else
-        {
-            command_to_send[2] |= ((uint64_t)dest) << (8 * 2);
-            command_to_send[2] |= ((uint64_t)(row_number[0] & 0xffffu));
-        }
 
-        // volatile uint64_t *command_address = (uint64_t *)commandAddress;
-        commandAddress[0] = command_to_send[0];
-        commandAddress[1] = command_to_send[1];
-        commandAddress[2] = command_to_send[2];
+    uint64_t w0 = 0, w1 = 0, w2 = 0, w3 = 0;
+
+    w0 |= ((uint64_t)operation_type)      << (8 * 7);
+    w0 |= ((uint64_t)operation_flag_mask) << (8 * 6);
+    w0 |= ((uint64_t)byte_mask)           << (8 * 4);
+
+    const uint64_t bm_lo =  (uint64_t)(bank_mask        & 0xffffffffull);
+    const uint64_t bm_hi =  (uint64_t)((bank_mask >> 32) & 0xffffffffull);
+    w0 |= bm_lo;
+    w3  = bm_hi; 
+
+    w1  = column_mask;
+
+    if ((operation_type % 0x80) < 3) { // AND/OR/XOR
+        w0 |= ((uint64_t)dest) << (8 * 5);
+        for (size_t i = 0; i < row_counter; i++)
+            w2 |= ((uint64_t)(row_number[i] & 0xffu)) << (8 * i);
+    } else { // COPY/NOT_COND
+        w2 |= ((uint64_t)dest)               << (16);
+        w2 |= ((uint64_t)(row_number[0] & 0xffffu));
     }
+
+    volatile uint64_t* ca = commandAddress;
+    ca[1] = w1;
+    ca[2] = w2;
+    ca[3] = w3;
+    __sync_synchronize(); // memory fence；或 std::atomic_thread_fence(std::memory_order_seq_cst)
+    ca[0] = w0;
 }
