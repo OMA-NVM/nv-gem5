@@ -237,6 +237,9 @@ def config_mem(options, system):
                 # Create the controller that will drive the interface
                 if opt_mem_type and opt_mem_type == "NVMainMemory":
                     mem_ctrl = dram_intf
+                elif opt_hybrid_channel:
+                    mem_ctrl = m5.objects.HeteroMemCtrl()
+                    mem_ctrl.dram = dram_intf
                 else:
                     mem_ctrl = dram_intf.controller()
                 

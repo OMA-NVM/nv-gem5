@@ -35,6 +35,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <type_traits>
+
 #include "arch/x86/regs/int.hh"
 #include "sim/guest_abi.hh"
 
@@ -81,6 +83,18 @@ struct Argument<X86PseudoInstABI, uint64_t>
         };
 
         return tc->getReg(int_reg_map[state++]);
+    }
+};
+
+template <typename T>
+struct Argument<X86PseudoInstABI, T, std::enable_if_t<
+    std::is_integral_v<T> && !std::is_same_v<T, uint64_t>>>
+{
+    static T
+    get(ThreadContext *tc, X86PseudoInstABI::State &state)
+    {
+        return static_cast<T>(
+            Argument<X86PseudoInstABI, uint64_t>::get(tc, state));
     }
 };
 

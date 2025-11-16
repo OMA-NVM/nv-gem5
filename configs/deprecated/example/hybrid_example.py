@@ -44,7 +44,7 @@ import m5
 from m5.objects import *
 
 # Add the common scripts to our path
-m5.util.addToPath("../../")
+m5.util.addToPath("../../../")
 
 
 # import the caches which we made
@@ -61,7 +61,7 @@ from common import (
 thispath = os.path.dirname(os.path.realpath(__file__))
 default_binary = os.path.join(
     thispath,
-    "../../../",
+    "../../../../",
     "tests/test-progs/hello/bin/x86/linux/hello",
 )
 
@@ -141,7 +141,6 @@ MemConfig.config_mem(args, system)
 system.mem_ctrls[0].dram.addr_mapping = "RoRaBaCoCh"
 system.mem_ctrls[0].nvm.addr_mapping = "RoRaBaCoCh"
 
-
 system.workload = SEWorkload.init_compatible(args.binary)
 
 # Create a process for a simple "Hello World" application
@@ -159,13 +158,19 @@ root = Root(full_system=False, system=system)
 m5.instantiate()
 
 # pin memory addresses to NVM
-print("NVM Addr starts: ", hex(system.mem_ranges[1].start))
-process.map(
-    vaddr=system.mem_ranges[1].start,
-    paddr=system.mem_ranges[1].start,
-    size=system.mem_ranges[1].size(),
-    cacheable=False,
-)
+nvm_start = int(system.mem_ranges[1].start)
+nvm_size = int(system.mem_ranges[1].size())
+print("NVM Addr starts: ", hex(nvm_start))
+# Process::map only accepts an int size parameter, so clamp to the maximum
+# signed 32-bit value to avoid overflow for large NVM ranges.
+max_map_size = (1 << 31) - 1
+page_size = 4096
+max_map_size -= max_map_size % page_size
+offset = 0
+while offset < nvm_size:
+    chunk_size = min(nvm_size - offset, max_map_size)
+    process.map(nvm_start + offset, nvm_start + offset, chunk_size, False)
+    offset += chunk_size
 
 print(f"Beginning simulation!")
 exit_event = m5.simulate()

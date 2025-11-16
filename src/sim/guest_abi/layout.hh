@@ -169,8 +169,9 @@ template <typename ABI, typename Arg>
 static Arg
 getArgument(ThreadContext *tc, typename ABI::State &state)
 {
-    return Argument<ABI, Arg>::get(tc, state);
+    return (Arg)Argument<ABI, Arg>::get(tc, state);
 }
+
 
 } // namespace guest_abi
 } // namespace gem5
