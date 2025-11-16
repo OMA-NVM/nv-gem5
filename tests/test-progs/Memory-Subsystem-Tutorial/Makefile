@@ -14,10 +14,10 @@ GEM5_M5_LIB   = -L$(GEM5_LIB_DIR) -lm5
 # -DOFFSET controls the number of bytes between each of the buffers
 # -DSTREAM_TYPE specifies the data-type of elements in the buffers
 # -DSTREAM_ARRAY_SIZE specifies the number of elements in each buffer
-STREAM_CPP_OPTS   = -DNTIMES=1 -DOFFSET=0 -DSTREAM_TYPE=double 
+STREAM_CPP_OPTS   = -DNTIMES=5 -DOFFSET=0 -DSTREAM_TYPE=double 
 # Size per array is approx. ~2GB. Delibrately using non-power of 2 elements
 # 256*1024*1024 elements = 268435456 elements = 2GiB with FP64
-STREAM_ARRAY_SIZE = 269
+STREAM_ARRAY_SIZE = 268435456
 
 ifdef size
 STREAM_ARRAY_SIZE = $(size)
@@ -34,7 +34,8 @@ stream.o: stream.c
 	$(CC) $(COMMON_COPTS) $(STREAM_CPP_OPTS) $(GEM5_INC) -c $< -o $@
 
 stream.bin: stream.o
-	$(CC) $(COMMON_COPTS) $^ $(GEM5_M5_LIB) -o $@
+	$(CC) -DDRAM $(COMMON_COPTS) $^ $(GEM5_M5_LIB) -o $@
+	$(CC) $(COMMON_COPTS) $^ $(GEM5_M5_LIB) -o nvm-$@
 
 mm.o: mm.c
 	$(CC) $(COMMON_COPTS) $(GEM5_INC) -c $< -o $@
@@ -68,6 +69,7 @@ help:
 	@echo ""
 	@echo -e "To compile STREAM benchmark with each buffer containing 67108864 elements, do:"
 	@echo -e "\tmake size=67108864"
+	
 
 clean:
 	rm -rf *.o *.bin 

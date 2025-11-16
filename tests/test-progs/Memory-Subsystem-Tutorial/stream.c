@@ -176,12 +176,11 @@
 #define STREAM_TYPE double
 #endif
 
-/*static STREAM_TYPE	a[STREAM_ARRAY_SIZE+OFFSET],
+#ifdef DRAM
+static STREAM_TYPE	a[STREAM_ARRAY_SIZE+OFFSET],
 			b[STREAM_ARRAY_SIZE+OFFSET],
-			c[STREAM_ARRAY_SIZE+OFFSET];/*
-
-
-/******************/
+			c[STREAM_ARRAY_SIZE+OFFSET];
+#else
 
 #define NVM_Addr 0x200000000ul
 #define A_Addr ((STREAM_TYPE *const)(NVM_Addr))
@@ -191,7 +190,8 @@
 static STREAM_TYPE *a = A_Addr,
                    *b = B_Addr,
                    *c = C_Addr;
-/******************/
+
+#endif
 
 
 static double	avgtime[4] = {0}, maxtime[4] = {0},
