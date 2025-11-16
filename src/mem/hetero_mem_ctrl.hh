@@ -128,6 +128,11 @@ class HeteroMemCtrl : public MemCtrl
     bool allIntfDrained() const override;
     DrainState drain() override;
     void drainResume() override;
+    void processNextReqEvent(MemInterface* mem_intr,
+                        MemPacketQueue& resp_queue,
+                        EventFunctionWrapper& resp_event,
+                        EventFunctionWrapper& next_req_event,
+                        bool& retry_wr_req) override;
 
   protected:
 

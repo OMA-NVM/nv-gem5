@@ -62,7 +62,6 @@ main(void)
     print_sample("DRAM", dram_y, n);
     free(dram_x);
     free(dram_y);
-    return 0;
     
     /* NVM-backed arrays at fixed addresses */
     double *nvm_x = NVM_X_ADDR;
@@ -74,5 +73,7 @@ main(void)
 
     daxpy(n, a, nvm_x, nvm_y);
     print_sample("NVM ", nvm_y, n);
+    
+    return 0;
     
 }

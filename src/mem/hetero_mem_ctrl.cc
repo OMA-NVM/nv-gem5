@@ -281,7 +281,7 @@ HeteroMemCtrl::doBurstAccess(MemPacket* mem_pkt, MemInterface* mem_intr)
 
     // When was command issued?
     Tick cmd_at;
-
+    DPRINTF(MemCtrl, "Schedule resp at %llu\n", mem_pkt->readyTime);
     if (mem_pkt->isDram()) {
         cmd_at = MemCtrl::doBurstAccess(mem_pkt, mem_intr);
         // Update timing for NVM ranks if NVM is configured on this channel
@@ -327,6 +327,220 @@ HeteroMemCtrl::memBusy(MemInterface* mem_intr) {
         return true;
     } else {
         return false;
+    }
+}
+
+void
+HeteroMemCtrl::processNextReqEvent(MemInterface* mem_intr,
+                        MemPacketQueue& resp_queue,
+                        EventFunctionWrapper& resp_event,
+                        EventFunctionWrapper& next_req_event,
+                        bool& retry_wr_req)
+{
+    // Use the DRAM interface as the canonical bus state owner but make
+    // decisions based on total queue occupancy (DRAM + NVM).
+    if (turnPolicy) {
+        busStateNext = selectNextBusState();
+    }
+
+    bool switched_cmd_type = (dram->busState != busStateNext);
+    recordTurnaroundStats(dram->busState, busStateNext);
+
+    DPRINTF(MemCtrl, "QoS Turnarounds selected state %s %s\n",
+            (dram->busState==MemCtrl::READ)?"READ":"WRITE",
+            switched_cmd_type?"[turnaround triggered]":"");
+
+    if (switched_cmd_type) {
+        if (dram->busState == MemCtrl::READ) {
+            DPRINTF(MemCtrl,
+            "Switching to writes after %d reads with %d reads waiting\n",
+            dram->readsThisTime, totalReadQueueSize);
+            stats.rdPerTurnAround.sample(dram->readsThisTime);
+            dram->readsThisTime = 0;
+            nvm->readsThisTime = 0;
+        } else {
+            DPRINTF(MemCtrl,
+            "Switching to reads after %d writes with %d writes waiting\n",
+            dram->writesThisTime, totalWriteQueueSize);
+            stats.wrPerTurnAround.sample(dram->writesThisTime);
+            dram->writesThisTime = 0;
+            nvm->writesThisTime = 0;
+        }
+    }
+
+    if (drainState() == DrainState::Draining && !totalWriteQueueSize &&
+        !totalReadQueueSize && respQEmpty() && allIntfDrained()) {
+
+        DPRINTF(Drain, "MemCtrl controller done draining\n");
+        signalDrainDone();
+    }
+
+    // keep bus state in sync across interfaces
+    dram->busState = busStateNext;
+    nvm->busState = busStateNext;
+    dram->busStateNext = busStateNext;
+    nvm->busStateNext = busStateNext;
+
+    nonDetermReads(mem_intr);
+
+    if (memBusy(mem_intr)) {
+        return;
+    }
+
+    if (busStateNext == READ) {
+        bool switch_to_writes = false;
+
+        if (totalReadQueueSize == 0) {
+            if (totalWriteQueueSize &&
+                (drainState() == DrainState::Draining ||
+                 totalWriteQueueSize > writeLowThreshold)) {
+                DPRINTF(MemCtrl,
+                        "Switching to writes due to read queue empty\n");
+                switch_to_writes = true;
+            } else {
+                if (drainState() == DrainState::Draining &&
+                    respQEmpty() && allIntfDrained()) {
+
+                    DPRINTF(Drain, "MemCtrl controller done draining\n");
+                    signalDrainDone();
+                }
+                return;
+            }
+        } else {
+            bool read_found = false;
+            MemPacketQueue::iterator to_read;
+            uint8_t prio = numPriorities();
+
+            for (auto queue = readQueue.rbegin();
+                 queue != readQueue.rend(); ++queue) {
+
+                prio--;
+                DPRINTF(QOS,
+                        "Checking READ queue [%d] priority [%d elements]\n",
+                        prio, queue->size());
+
+                to_read = chooseNext((*queue), switched_cmd_type ?
+                                     minWriteToReadDataGap() : 0, mem_intr);
+
+                if (to_read != queue->end()) {
+                    read_found = true;
+                    break;
+                }
+            }
+
+            if (!read_found) {
+                DPRINTF(MemCtrl, "No Reads Found - exiting\n");
+                return;
+            }
+
+            auto mem_pkt = *to_read;
+            auto target_intr = mem_pkt->isDram() ? dram : nvm;
+
+            Tick cmd_at = doBurstAccess(mem_pkt, target_intr);
+
+            DPRINTF(MemCtrl,
+            "Command for %#x, issued at %lld.\n", mem_pkt->addr, cmd_at);
+
+            assert(pktSizeCheck(mem_pkt, target_intr));
+            assert(mem_pkt->readyTime >= curTick());
+
+            logResponse(MemCtrl::READ, (*to_read)->requestorId(),
+                        mem_pkt->qosValue(), mem_pkt->getAddr(), 1,
+                        mem_pkt->readyTime - mem_pkt->entryTime);
+
+            target_intr->readQueueSize--;
+
+            if (resp_queue.empty()) {
+                assert(!resp_event.scheduled());
+                schedule(resp_event, mem_pkt->readyTime);
+            } else {
+                assert(resp_queue.back()->readyTime <= mem_pkt->readyTime);
+                assert(resp_event.scheduled());
+            }
+
+            resp_queue.push_back(mem_pkt);
+
+            if ((totalWriteQueueSize > writeHighThreshold) &&
+               (dram->readsThisTime >= minReadsPerSwitch ||
+                totalReadQueueSize == 0)
+               && !(nvmWriteBlock(target_intr))) {
+                switch_to_writes = true;
+            }
+
+            readQueue[mem_pkt->qosValue()].erase(to_read);
+        }
+
+        if (switch_to_writes) {
+            busStateNext = WRITE;
+            dram->busStateNext = WRITE;
+            nvm->busStateNext = WRITE;
+        }
+    } else {
+        bool write_found = false;
+        MemPacketQueue::iterator to_write;
+        uint8_t prio = numPriorities();
+
+        for (auto queue = writeQueue.rbegin();
+             queue != writeQueue.rend(); ++queue) {
+
+            prio--;
+            DPRINTF(QOS,
+                    "Checking WRITE queue [%d] priority [%d elements]\n",
+                    prio, queue->size());
+
+            to_write = chooseNext((*queue),
+                    switched_cmd_type ? minReadToWriteDataGap() : 0, mem_intr);
+
+            if (to_write != queue->end()) {
+                write_found = true;
+                break;
+            }
+        }
+
+        if (!write_found) {
+            DPRINTF(MemCtrl, "No Writes Found - exiting\n");
+            return;
+        }
+
+        auto mem_pkt = *to_write;
+        auto target_intr = mem_pkt->isDram() ? dram : nvm;
+
+        assert(pktSizeCheck(mem_pkt, target_intr));
+
+        Tick cmd_at = doBurstAccess(mem_pkt, target_intr);
+        DPRINTF(MemCtrl,
+        "Command for %#x, issued at %lld.\n", mem_pkt->addr, cmd_at);
+
+        isInWriteQueue.erase(burstAlign(mem_pkt->addr, target_intr));
+
+        logResponse(MemCtrl::WRITE, mem_pkt->requestorId(),
+                    mem_pkt->qosValue(), mem_pkt->getAddr(), 1,
+                    mem_pkt->readyTime - mem_pkt->entryTime);
+        target_intr->writeQueueSize--;
+
+        writeQueue[mem_pkt->qosValue()].erase(to_write);
+        delete mem_pkt;
+
+        bool below_threshold =
+            totalWriteQueueSize + minWritesPerSwitch < writeLowThreshold;
+
+        if (totalWriteQueueSize == 0 ||
+            (below_threshold && drainState() != DrainState::Draining) ||
+            (totalReadQueueSize && dram->writesThisTime >= minWritesPerSwitch) ||
+            (totalReadQueueSize && (nvmWriteBlock(target_intr)))) {
+
+            busStateNext = MemCtrl::READ;
+            dram->busStateNext = MemCtrl::READ;
+            nvm->busStateNext = MemCtrl::READ;
+        }
+    }
+
+    if (!next_req_event.scheduled())
+        schedule(next_req_event, std::max(dram->nextReqTime, curTick()));
+
+    if (retry_wr_req && totalWriteQueueSize < writeBufferSize) {
+        retry_wr_req = false;
+        port.sendRetryReq();
     }
 }
 
