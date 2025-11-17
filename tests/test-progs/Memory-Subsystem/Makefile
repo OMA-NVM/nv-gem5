@@ -22,7 +22,7 @@ STREAM_ARRAY_SIZE = 268435456
 ifdef size
 STREAM_ARRAY_SIZE = $(size)
 endif
-STREAM_CPP_OPTS  += -DSTREAM_ARRAY_SIZE=$(STREAM_ARRAY_SIZE)
+STREAM_CPP_OPTS  += -DSTREAM_ARRAY_SIZE=$(STREAM_ARRAY_SIZE) -Wno-unknown-pragmas -Wno-unused-but-set-variable
 
 # Common compiler options for both workloads
 COMMON_COPTS   = -Wall -O3 -static
@@ -44,7 +44,7 @@ mm.bin: mm.o
 	$(CC) $(COMMON_COPTS) $^ $(GEM5_M5_LIB) -o $@
 
 daxpy.o: daxpy.c
-	$(CC) $(COMMON_COPTS) $(STREAM_CPP_OPTS) $(GEM5_INC) -c $< -o $@
+	$(CC) $(COMMON_COPTS) $(GEM5_INC) -c $< -o $@
 
 daxpy.bin: daxpy.o
 	$(CC) $(COMMON_COPTS) $^ $(GEM5_M5_LIB) -o $@

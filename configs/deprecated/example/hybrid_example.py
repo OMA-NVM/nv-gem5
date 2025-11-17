@@ -124,15 +124,11 @@ system.cpu.interrupts[0].int_responder = system.membus.mem_side_ports
 # Connect the system up to the membus
 system.system_port = system.membus.cpu_side_ports
 
-
-
-
 args.mem_channels = 1 # single mem_ctrl
 args.external_memory_system = 0
 args.hybrid_channel = True
 args.mem_type = "DDR4_2400_16x4"
 args.nvm_type = "NVM_2400_1x64"
-
     
 MemConfig.config_mem(args, system)
 

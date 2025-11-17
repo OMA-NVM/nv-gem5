@@ -436,6 +436,14 @@ for variant_path in variant_paths:
             env.Append(CCFLAGS=['-D HYBRID_CACHE=0'])
             print(">>> Hybrid cache modifications are disabled.")
 
+        mem_subsystem_flag = ARGUMENTS.get("mem_subsystem", 0)
+        if mem_subsystem_flag == "1":
+            env.Append(CCFLAGS=['-D MEM_SUBSYSTEM=1'])
+            print(">>> Memory Subsystem modifications are enabled.")
+        else:
+            env.Append(CCFLAGS=['-D MEM_SUBSYSTEM=0'])
+            print(">>> Memory Subsystem modifications are disabled.")
+
         # As gcc and clang share many flags, do the common parts here
         env.Append(CCFLAGS=['-pipe'])
         env.Append(CCFLAGS=['-fno-strict-aliasing'])
