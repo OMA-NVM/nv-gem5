@@ -60,6 +60,9 @@
 #include "base/callback.hh"
 #include "sim/cur_tick.hh"
 #endif
+#ifdef CDNCcimFlag
+#include "mem/CDNCcim/cim_handler.hh"
+#endif
 namespace gem5
 {
 
@@ -589,7 +592,6 @@ MemCtrl::processRespondEvent(MemInterface* mem_intr,
                         EventFunctionWrapper& resp_event,
                         bool& retry_rd_req)
 {
-
     DPRINTF(MemCtrl,
             "processRespondEvent(): Some req has reached its readyTime\n");
 
@@ -608,15 +610,59 @@ MemCtrl::processRespondEvent(MemInterface* mem_intr,
             // so we can now respond to the requestor
             // @todo we probably want to have a different front end and back
             // end latency for split packets
-            accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency,
-                             mem_intr);
+            
+            // my added
+            // consider the cim latency
+            Tick extra = 0;
+            #ifdef CDNCcimFlag
+            {
+                const Addr a = mem_pkt->pkt->getAddr();
+                auto *cim = mem_intr->getCimHandlerPtr(a);
+                if (cim) {
+                    inform("[CIMDBG][HIT] tick=%lu addr=%#lx cmd=%s size=%u\n",
+                        curTick(), a, mem_pkt->pkt->cmdString(), mem_pkt->pkt->getSize());
+
+                    inform("[CIMDBG][HIT] bases: rw=%#lx tmp=%#lx cmd=%#lx\n",
+                        cim->getReadWriteAddress(),
+                        cim->getResultTemporaryBufferAddress(),
+                        cim->getCommandWriteAddress());
+                    extra = cim->scheduleCmdAndGetExtraDelay(mem_pkt->pkt);
+                    inform("[CIMDBG][HIT] scheduleCmdAndGetExtraDelay() -> extra=%lu ticks\n",
+                        extra);
+                }
+            }
+            #endif
+            accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency + extra, mem_intr);
+            // accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency,
+            //                  mem_intr);
             delete mem_pkt->burstHelper;
             mem_pkt->burstHelper = NULL;
         }
     } else {
         // it is not a split packet
-        accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency,
-                         mem_intr);
+        // my added
+        // consider the cim latency
+        Tick extra = 0;
+        #ifdef CDNCcimFlag
+        {
+            const Addr a = mem_pkt->pkt->getAddr();
+            auto *cim = mem_intr->getCimHandlerPtr(a);
+            if (cim) {
+                inform("[CIMDBG][HIT] tick=%lu addr=%#lx cmd=%s size=%u\n",
+                    curTick(), a, mem_pkt->pkt->cmdString(), mem_pkt->pkt->getSize());
+
+                inform("[CIMDBG][HIT] bases: rw=%#lx tmp=%#lx cmd=%#lx\n",
+                    cim->getReadWriteAddress(),
+                    cim->getResultTemporaryBufferAddress(),
+                    cim->getCommandWriteAddress());
+                extra = cim->scheduleCmdAndGetExtraDelay(mem_pkt->pkt);
+                inform("[CIMDBG][HIT] scheduleCmdAndGetExtraDelay() -> extra=%lu ticks\n",
+                extra);
+            }
+        }
+        #endif
+        accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency + extra, mem_intr);
+        // accessAndRespond(mem_pkt->pkt, frontendLatency + backendLatency, mem_intr);
     }
 
     queue.pop_front();

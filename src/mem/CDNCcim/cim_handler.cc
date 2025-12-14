@@ -9,6 +9,7 @@
 
 
 #include "cim_handler.hh"
+#include "sim/core.hh" 
 
 namespace gem5
 {
@@ -29,9 +30,9 @@ CimHandler::CimHandler(const CimHandlerParams &params)
     DPRINTF(CIMDBG, "CimHandler Constructed! this_ptr: %p\n", this);
     assert(numOperationTypes == operationsInitLatency.size());
     assert(numOperationTypes == operationsOnWordLatency.size());
-    for (auto t : operationsOnWordLatency) {
-        DPRINTF(CIMDBG, "operationsOnWordLatency : %ld\n", t);
-    }
+    // for (auto t : operationsOnWordLatency) {
+    //     DPRINTF(CIMDBG, "operationsOnWordLatency : %ld\n", t);
+    // }
 
     // change this if you need intraBank parallelism:
     // also the other places related to 'unitReleaseTime'
@@ -40,6 +41,10 @@ CimHandler::CimHandler(const CimHandlerParams &params)
     for (size_t i = 0; i < parallel_units; i++) {
         unitReleaseTime[i] = curTick();
     }
+
+    #ifdef CDNCcimFlag
+        opInitLat = params.operations_init_latency;
+    #endif
 }
 
 CimHandler::~CimHandler()
@@ -146,10 +151,10 @@ CimHandler::cimExecuteCommand(
         __LINE__);
     command.print();
 
-    // printf("[CIM] Execute command type=%u dest=%u bank_mask=0x%016llx col_mask=0x%016llx\n",
-    //    command.operation_type, command.dest,
-    //    (unsigned long long)command.bank_mask,
-    //    (unsigned long long)command.column_mask);
+    printf("[CIM] Execute command type=%u dest=%u bank_mask=0x%016llx col_mask=0x%016llx\n",
+       command.operation_type, command.dest,
+       (unsigned long long)command.bank_mask,
+       (unsigned long long)command.column_mask);
 
     for (size_t bank = 0; bank < (1ull << numBankBits); bank++) {
         if (command.bank_mask & (1ull << bank)) {
@@ -185,24 +190,19 @@ CimHandler::cimExecuteCommand(
                             std::vector<uint8_t *> rows;
                             for (auto &row : command.row_number) {
                                 if (row < (1ul << numRowBits)) {
-                                    rows.push_back(addressTranslator(
-                                        abstract_mem, readWriteAddress, row,
-                                        bank, column));
-                                    
                                     // Debug print for each input row
                                     uint8_t *src_ptr = addressTranslator(
                                         abstract_mem, readWriteAddress, row, bank, column);
                                     rows.push_back(src_ptr);
 
-                                    //printf("[CIM OR] src row=%u bank=%lu col=%lu addr=%p\n", row, bank, column, src_ptr);
+                                    printf("[CIM OR] src row=%u bank=%lu col=%lu addr=%p\n", row, bank, column, src_ptr);
                                 }                
                             }
 
                             //printf("[CIM OR] dest row=%u bank=%lu col=%lu addr=%p, byte_mask=0x%02x\n", command.dest, bank, column, dest, command.byte_mask);
 
                             assert(rows.size() > 1);
-                            cimOperationHandler->OR(
-                                rows, dest, command.byte_mask);
+                            cimOperationHandler->OR(rows, dest, command.byte_mask);
                             break;
                         }
                         case OperationType::XOR:
@@ -310,12 +310,12 @@ CimHandler::cimUpdateLatencyTable(bool init, uint8_t operation, size_t bank)
         unionBusyUntil = end;
     }
 
-    DPRINTF(CIMDBG,
-        "[%s:%s:%d] init:%d bank:%lu  start:%lld end:%lld delta:%lld  "
-        "unitRelease:%lld unionUntil:%lld\n",
-        __FILE__, __func__, __LINE__, init, bank,
-        (long long)start, (long long)end, (long long)delta,
-        (long long)unitReleaseTime[bank], (long long)unionBusyUntil);
+    // DPRINTF(CIMDBG,
+    //     "[%s:%s:%d] init:%d bank:%lu  start:%lld end:%lld delta:%lld  "
+    //     "unitRelease:%lld unionUntil:%lld\n",
+    //     __FILE__, __func__, __LINE__, init, bank,
+    //     (long long)start, (long long)end, (long long)delta,
+    //     (long long)unitReleaseTime[bank], (long long)unionBusyUntil);
 }
 
 uint8_t *
@@ -401,6 +401,53 @@ CimHandler::CommandDecode::print()
     DPRINTFR(CIMDBG, "row: %04x \n", row_number[7]);
     DPRINTFR(CIMDBG, "dest: %04x \n------\n", dest);
 }
+
+#ifdef CDNCcimFlag
+Tick
+CimHandler::scheduleCmdAndGetExtraDelay(PacketPtr pkt)
+{
+    const uint8_t *data = pkt->getConstPtr<uint8_t>();
+    uint64_t cmd0 = 0;
+    std::memcpy(&cmd0, data, sizeof(uint64_t));
+
+    uint8_t operation_type = (cmd0 >> (8 * 7)) & 0xffu;
+
+    auto opIndex = [&](uint8_t op)->int {
+        switch (static_cast<OperationType>(op)) {
+        case OperationType::AND:            return 0;
+        case OperationType::OR:             return 1;
+        case OperationType::XOR:            return 2;
+        case OperationType::NOT_COND:       return 3;
+        case OperationType::COPY:           return 4; 
+
+        case OperationType::short_AND:      return 0;
+        case OperationType::short_OR:       return 1;
+        case OperationType::short_XOR:      return 2;
+        case OperationType::short_NOT_COND: return 3;
+        case OperationType::short_COPY:     return 4;
+
+        default:
+            return -1;
+        }
+    };
+
+    int idx = opIndex(operation_type);
+
+    Tick cmdLat = 0;
+    if (idx >= 0 && idx < (int)opInitLat.size()) {
+        cmdLat = opInitLat[idx];
+    }
+
+    Tick now = curTick();
+    Tick start = std::max(now, cimReadyAt);
+    Tick finish = start + cmdLat;
+    cimReadyAt = finish;
+
+    DPRINTF(CIMDBG, "scheduleCmdAndGetExtraDelay: curTick=%lu", curTick());
+
+    return finish - now; 
+}
+#endif
 
 } // namespace memory
 } // namespace gem5

@@ -1,6 +1,7 @@
 import m5
 from m5.objects import *
 from configs.common import SimpleOpts
+from m5.objects import Cache
 
 # --- System ---
 system = System()
@@ -22,8 +23,37 @@ system.membus.forward_latency = 10
 system.membus.response_latency = 10
 system.membus.snoop_response_latency = 10
 
-system.cpu.icache_port = system.membus.cpu_side_ports
-system.cpu.dcache_port = system.membus.cpu_side_ports
+class L1ICache(Cache):
+    size = "32kB"
+    assoc = 2
+    tag_latency = 1
+    data_latency = 1
+    response_latency = 1
+    mshrs = 4
+    tgts_per_mshr = 20
+
+class L1DCache(Cache):
+    size = "32kB"
+    assoc = 2
+    tag_latency = 1
+    data_latency = 1
+    response_latency = 1
+    mshrs = 8
+    tgts_per_mshr = 20
+    write_buffers = 8
+
+# L1 caches
+system.cpu.icache = L1ICache()
+system.cpu.dcache = L1DCache()
+
+# CPU <-> L1
+system.cpu.icache_port = system.cpu.icache.cpu_side
+system.cpu.dcache_port = system.cpu.dcache.cpu_side
+
+# L1 <-> membus
+system.cpu.icache.mem_side = system.membus.cpu_side_ports
+system.cpu.dcache.mem_side = system.membus.cpu_side_ports
+
 system.system_port = system.membus.cpu_side_ports
 
 system.mem_ctrl = MemCtrl()
@@ -62,17 +92,34 @@ try:
     system.mem_ctrl.dram.cim_handler_list = [CimHandler()]
     for cim in system.mem_ctrl.dram.cim_handler_list:
         cim.num_column_bits = 6
-        cim.num_bank_bits   = 6
+        cim.num_bank_bits   = 5
         cim.num_row_bits    = 8 
 
         cim.cim_operation_handler = CimOperationInterface()
 
+        # tick  16284172194
+        # ROI.  16278616755
+        # cache 344133189
+        # cim.operations_init_latency = [
+        #     "2.821ns", "2.821ns", "2.821ns", "2.821ns", "6.56ns",
+        # ]
+        # cim.operations_on_word_latency = [
+        #     "2.821ns", "2.821ns", "2.821ns", "2.821ns", "6.56ns",
+        # ]
+        # tick 16284387978
+        # cache 344366955
         cim.operations_init_latency = [
-            "2.821ns", "2.821ns", "2.821ns", "2.821ns", "6.56ns",
+            "20.821ns", "20.821ns", "20.821ns", "20.821ns", "60.56ns",
         ]
         cim.operations_on_word_latency = [
-            "2.821ns", "2.821ns", "2.821ns", "2.821ns", "6.56ns",
+            "20.821ns", "20.821ns", "20.821ns", "20.821ns", "60.56ns",
         ]
+        # cim.operations_init_latency = [
+        #     "2200000.821ns", "2200000.821ns", "2200000.821ns", "2200000.821ns", "2200000.56ns",
+        # ]
+        # cim.operations_on_word_latency = [
+        #     "2200000.821ns", "2200000.821ns", "2200000.821ns", "2200000.821ns", "2200000.56ns",
+        # ]
 except Exception as e:
     print("WARNING: CIM not enabled or SimObjects not found:", e) 
 
@@ -86,20 +133,22 @@ SimpleOpts.add_option("binary", nargs="?", default=binary)
 EndAddress = 0x12000018
 SimpleOpts.add_option("--EndAddress", type=str, default="0x12000018")
 
-system.workload = SEWorkload.init_compatible(binary)
 process = Process()
 process.cmd = [binary]
+system.workload = SEWorkload.init_compatible(binary)
 system.cpu.workload = process
 system.cpu.createThreads()
 
 root = Root(full_system=False, system=system)
 m5.instantiate()
-process.map(
-    vaddr=Addr(0x10000000),
-    paddr=Addr(0x10000000),
-    size=0x2000018,
-    cacheable=False,
-)
+
+# data: [0x10000000, 0x12000000)  -> size = 0x2000000
+process.map(vaddr=Addr(0x10000000), paddr=Addr(0x10000000),
+            size=0x2000000, cacheable=True)
+
+# cmd/mmio: [0x12000000, 0x12001000)
+process.map(vaddr=Addr(0x12000000), paddr=Addr(0x12000000),
+            size=0x1000, cacheable=False)
 
 print("Beginning simulation!")
 exit_event = m5.simulate()

@@ -17,6 +17,7 @@
 #include "params/CimHandler.hh"
 #include "sim/sim_object.hh"
 #include "base/statistics.hh"
+#include "sim/cur_tick.hh"
 
 namespace gem5
 {
@@ -75,14 +76,12 @@ class CimHandler : public SimObject
     //
     Tick *unitReleaseTime;
 
-    // === 新增：統計欄位 ===
-    statistics::Scalar cimWorkTicksSum;    // 內部工作時間總和（每段 latency 相加）
-    statistics::Scalar cimWorkTicksUnion;  // 忙碌聯集（至少一個 bank 在忙）
-    statistics::Scalar cimInitChunkCount;  // init 區段次數
-    statistics::Scalar cimWordChunkCount;  // on-word 區段次數
-    statistics::Scalar cimOpCmdCount;      // 指令（高層一次 op）次數
-
-    Tick unionBusyUntil = 0;          // 聯集累積指標
+    statistics::Scalar cimWorkTicksSum;   
+    statistics::Scalar cimWorkTicksUnion;  
+    statistics::Scalar cimInitChunkCount; 
+    statistics::Scalar cimWordChunkCount; 
+    statistics::Scalar cimOpCmdCount;   
+    Tick unionBusyUntil = 0;       
 
     //
     void cimExecuteCommand(
@@ -92,6 +91,10 @@ class CimHandler : public SimObject
     uint8_t *addressTranslator(
         AbstractMemory *abstract_mem, Addr startAddress, uint16_t row,
         uint8_t bank, uint8_t column);
+
+    // added
+    std::vector<Tick> opInitLat; 
+    Tick cimReadyAt = 0;
 
   public:
     CimOperationInterface *cimOperationHandler;
@@ -130,6 +133,13 @@ class CimHandler : public SimObject
     Tick getCimLatency(const Addr &addr);
 
     void regStats() override;
+
+    public:
+    Addr getReadWriteAddress() const { return readWriteAddress; }
+    Addr getResultTemporaryBufferAddress() const { return resultTemporaryBufferAddress; }
+    Addr getCommandWriteAddress() const { return commandWriteAddress; }
+
+    Tick scheduleCmdAndGetExtraDelay(PacketPtr pkt); // my added
 };
 } // namespace memory
 } // namespace gem5

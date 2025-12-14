@@ -53,6 +53,7 @@
 #include "debug/CacheRepl.hh"
 #include "debug/CacheVerbose.hh"
 #include "debug/HWPrefetch.hh"
+#include "debug/CIMDBG.hh"
 #include "mem/cache/compressors/base.hh"
 #include "mem/cache/mshr.hh"
 #include "mem/cache/prefetch/base.hh"
@@ -1233,7 +1234,6 @@ BaseCache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
 {
     // sanity check
     assert(pkt->isRequest());
-
     gem5_assert(!(isReadOnly && pkt->isWrite()),
                 "Should never see a write in a read-only cache %s\n",
                 name());
@@ -1241,6 +1241,20 @@ BaseCache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
     // Access block in the tags
     Cycles tag_latency(0);
     blk = tags->accessBlock(pkt, tag_latency);
+
+    if (pkt->req) {
+        const Addr a = pkt->getAddr();
+        if (a >= 0x10000000 && a < 0x12000018) {
+            pkt->req->setFlags(pkt->req->getFlags() | Request::UNCACHEABLE);
+
+            DPRINTF(Cache, "[UC_BYPASS] %s addr=%#lx cmd=%s tag_hit=%d -> FORCE_MISS\n",
+                    name(), a, pkt->cmdString(), blk != nullptr);
+
+            blk = nullptr;  // make sure we never take hit path
+            // optional: lat = calculateTagOnlyLatency(pkt->headerDelay, tag_latency);
+            return false;   // miss -> forward to lower level
+        }
+    }
 
     DPRINTF(Cache, "%s for %s %s\n", __func__, pkt->print(),
             blk ? "hit " + blk->print() : "miss");
